@@ -121,6 +121,86 @@ class ReminderTestCase(TestCase):
         self.assertEqual(reminder.active, False)
 
 
+
+class UserReminderTestCase(TestCase):
+    """
+    This is the original use case and tests a fixed reminder schedule.
+    """
+    @classmethod
+    def setUpClass(cls):
+        cls.domain = "test"
+        cls.message = "Hey you're getting this message."
+        cls.user_id = "USER-ID-109347"
+        cls.user = CommCareUser.create(cls.domain, 'chw.bob', '****', uuid=cls.user_id)
+        cls.start_datetime = datetime(year=2011, month=7, day=8, hour=19, minute=8)
+        CaseReminderHandler.now = datetime(year=2011, month=7, day=7, hour=19, minute=8)
+        cls.handler = CaseReminderHandler(
+            domain=cls.domain,
+            method="test",
+            start_condition_type=ON_DATETIME,
+            recipient_type=RECIPIENT_USER,
+            recipient_id=cls.user_id,
+            start_datetime=cls.start_datetime,
+            default_lang='en',
+            max_iteration_count=REPEAT_SCHEDULE_INDEFINITELY,
+            schedule_length=3,
+            event_interpretation=EVENT_AS_OFFSET,
+            start_offset=0,
+            events=[
+                CaseReminderEvent(
+                    day_num=0,
+                   fire_time=time(0, 0, 0),
+                   message={"en": cls.message},
+                   callback_timeout_intervals=[]
+                )
+            ]
+        )
+        cls.handler.save()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.user.delete()
+
+    def test_ok(self):
+        self.assertEqual(self.handler.events[0].message['en'], self.message)
+        reminders = self.handler.get_reminders()
+        self.assertTrue(len(reminders), 1)
+        reminder = reminders[0]
+        self.assertEqual(reminder.next_fire, self.start_datetime)
+        self.assertEqual(reminder.last_fired, None)
+
+        # fire a day after start_datetime
+        CaseReminderHandler.now = datetime(year=2011, month=7, day=9, hour=19, minute=8)
+        CaseReminderHandler.fire_reminders()
+        reminder = CaseReminder.get(reminder._id)
+        self.assertEqual(reminder.last_fired, CaseReminderHandler.now)
+        self.assertEqual(
+            reminder.next_fire,
+            self.start_datetime + timedelta(days=self.handler.schedule_length)
+        )
+
+        # Shouldn't fire until three days after start_datetime
+        last_fired = CaseReminderHandler.now
+        CaseReminderHandler.now = datetime(year=2011, month=7, day=10, hour=19, minute=8)
+        CaseReminderHandler.fire_reminders()
+        reminder = CaseReminder.get(reminder._id)
+        self.assertEqual(reminder.last_fired, last_fired)
+        self.assertEqual(
+            reminder.next_fire,
+            self.start_datetime + timedelta(days=self.handler.schedule_length)
+        )
+
+        # fire three days after last fired
+        CaseReminderHandler.now = datetime(year=2011, month=7, day=13, hour=19, minute=8)
+        CaseReminderHandler.fire_reminders()
+        reminder = CaseReminder.get(reminder._id)
+        self.assertEqual(reminder.last_fired, CaseReminderHandler.now)
+        self.assertEqual(
+            reminder.next_fire,
+            self.start_datetime + timedelta(days=(self.handler.schedule_length * 2))
+        )
+
+
 class ReminderIrregularScheduleTestCase(TestCase):
     """
     This use case represents an irregular reminder schedule which is repeated twice:

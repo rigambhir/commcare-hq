@@ -136,7 +136,7 @@ def scheduled_reminders(request, domain, template="reminders/partial/scheduled_r
             "handler_name" : handler.nickname,
             "next_fire" : reminder.next_fire,
             "recipient_desc" : recipient_desc,
-            "recipient_type" : handler.recipient,
+            "recipient_type" : handler.recipient_type,
             "case_id" : case.get_id if case is not None else None,
             "case_name" : case.name if case is not None else None,
         })
@@ -193,7 +193,7 @@ def add_complex_reminder_schedule(request, domain, handler_id=None):
             h.nickname = form.cleaned_data["nickname"]
             h.default_lang = form.cleaned_data["default_lang"]
             h.method = form.cleaned_data["method"]
-            h.recipient = form.cleaned_data["recipient"]
+            h.recipient_type = form.cleaned_data["recipient"]
             h.start_property = form.cleaned_data["start_property"]
             h.start_value = form.cleaned_data["start_value"]
             h.start_date = form.cleaned_data["start_date"]
@@ -221,7 +221,7 @@ def add_complex_reminder_schedule(request, domain, handler_id=None):
                 h.start_datetime = datetime.combine(dt, tm)
             else:
                 h.start_datetime = None
-            h.sample_id = form.cleaned_data["sample_id"]
+            h.recipient_id = form.cleaned_data["sample_id"]
             
             if get_events_scheduling_info(old_events) != get_events_scheduling_info(h.events) or old_start_offset != h.start_offset or old_schedule_length != h.schedule_length:
                 save_kwargs = {
@@ -241,7 +241,7 @@ def add_complex_reminder_schedule(request, domain, handler_id=None):
                 "nickname"              : h.nickname,
                 "default_lang"          : h.default_lang,
                 "method"                : h.method,
-                "recipient"             : h.recipient,
+                "recipient"             : h.recipient_type,
                 "start_property"        : h.start_property,
                 "start_value"           : h.start_value,
                 "start_date"            : h.start_date,

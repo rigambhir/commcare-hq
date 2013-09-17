@@ -111,7 +111,7 @@ def fire_sms_event(reminder, handler, recipients, verified_numbers):
 
 def fire_sms_callback_event(reminder, handler, recipients, verified_numbers):
     current_event = reminder.current_event
-    if handler.recipient in [RECIPIENT_CASE, RECIPIENT_USER]:
+    if handler.recipient_type in [RECIPIENT_CASE, RECIPIENT_USER]:
         # If there are no recipients, just move to the next reminder event
         if len(recipients) == 0:
             return True
@@ -157,7 +157,7 @@ def fire_sms_callback_event(reminder, handler, recipients, verified_numbers):
         return False
 
 def fire_sms_survey_event(reminder, handler, recipients, verified_numbers):
-    if handler.recipient in [RECIPIENT_CASE, RECIPIENT_SURVEY_SAMPLE]:
+    if handler.recipient_type in [RECIPIENT_CASE, RECIPIENT_SURVEY_SAMPLE]:
         if reminder.callback_try_count > 0:
             # Handle timeouts
             if handler.submit_partial_forms and (reminder.callback_try_count == len(reminder.current_event.callback_timeout_intervals)):
@@ -228,7 +228,7 @@ def fire_sms_survey_event(reminder, handler, recipients, verified_numbers):
        return False
 
 def fire_ivr_survey_event(reminder, handler, recipients, verified_numbers):
-    if handler.recipient == RECIPIENT_CASE:
+    if handler.recipient_type == RECIPIENT_CASE:
         # If there are no recipients, just move to the next reminder event
         if len(recipients) == 0:
             return True

@@ -46,6 +46,7 @@ UI_COMPLEX = "COMPLEX"
 UI_CHOICES = [UI_SIMPLE_FIXED, UI_COMPLEX]
 
 RECIPIENT_USER = "USER"
+RECIPIENT_GROUP = "GROUP"
 RECIPIENT_OWNER = "OWNER"
 RECIPIENT_CASE = "CASE"
 RECIPIENT_PARENT_CASE = "PARENT_CASE"
@@ -329,9 +330,9 @@ class CaseReminderHandler(Document):
     default_lang = StringProperty()
     method = StringProperty(choices=METHOD_CHOICES, default="sms")
     ui_type = StringProperty(choices=UI_CHOICES, default=UI_SIMPLE_FIXED)
-    recipient = StringProperty(choices=RECIPIENT_CHOICES, default=RECIPIENT_USER)
+    recipient_type = StringProperty(choices=RECIPIENT_CHOICES, default=RECIPIENT_USER)
     ui_frequency = StringProperty(choices=UI_FREQUENCY_CHOICES, default=UI_FREQUENCY_ADVANCED) # This will be used to simplify the scheduling process in the ui
-    sample_id = StringProperty()
+    recipient_id = StringProperty()
     
     # Only used when recipient is RECIPIENT_SUBCASE.
     # All subcases matching the given criteria will be the recipients.
@@ -453,21 +454,22 @@ class CaseReminderHandler(Document):
         return  The CaseReminder
         """
         if recipient is None:
-            if self.recipient == RECIPIENT_USER:
+            if self.recipient_type == RECIPIENT_USER:
                 recipient = CommCareUser.get_by_user_id(case.user_id)
-            elif self.recipient == RECIPIENT_CASE:
+            elif self.recipient_type == RECIPIENT_CASE:
                 recipient = CommConnectCase.get(case._id)
         local_now = CaseReminderHandler.utc_to_local(recipient, now)
-        
-        case_id = case._id if case is not None else None
-        user_id = case.user_id if case is not None else None
-        sample_id = recipient._id if self.recipient == RECIPIENT_SURVEY_SAMPLE else None
-        
+
+        if recipient:
+            recipient_id = recipient._id
+        elif self.recipient_type in [RECIPIENT_SUBCASE, RECIPIENT_PARENT_CASE, RECIPIENT_OWNER]:
+            recipient_id = case._id
+
         reminder = CaseReminder(
             domain=self.domain,
-            case_id=case_id,
+            case_id=case._id if case else None,
+            recipient_id=recipient_id,
             handler_id=self._id,
-            user_id=user_id,
             method=self.method,
             active=True,
             start_date=date(now.year, now.month, now.day) if (now.hour == 0 and now.minute == 0 and now.second == 0 and now.microsecond == 0) else date(local_now.year,local_now.month,local_now.day),
@@ -475,7 +477,6 @@ class CaseReminderHandler(Document):
             current_event_sequence_num=0,
             callback_try_count=0,
             skip_remaining_timeouts=False,
-            sample_id=sample_id,
             xforms_session_ids=[],
         )
         # Set the first fire time appropriately
@@ -763,7 +764,7 @@ class CaseReminderHandler(Document):
         except Exception:
             user = None
         
-        if not self.active or case.closed or case.type != self.case_type or case.doc_type.endswith("-Deleted") or (self.recipient == RECIPIENT_USER and not user):
+        if not self.active or case.closed or case.type != self.case_type or case.doc_type.endswith("-Deleted") or (self.recipient_type == RECIPIENT_USER and not user):
             if reminder:
                 reminder.retire()
         else:
@@ -831,8 +832,12 @@ class CaseReminderHandler(Document):
         
         now = self.get_now()
         
-        if self.recipient == RECIPIENT_SURVEY_SAMPLE:
-            recipient = CommCareCaseGroup.get(self.sample_id)
+        if self.recipient_type == RECIPIENT_SURVEY_SAMPLE:
+            recipient = CommCareCaseGroup.get(self.recipient_id)
+        elif self.recipient_type == RECIPIENT_USER:
+            recipient = CommCareUser.get(self.recipient_id)
+        elif self.recipient_type == RECIPIENT_GROUP:
+            recipient = Group.get(self.recipient_id)
         else:
             # TODO: Need to support sending directly to users / cases without case criteria being set
             recipient = None
@@ -933,9 +938,9 @@ class CaseReminder(Document, LockableMixIn):
     of the CaseReminderHandler.
     """
     domain = StringProperty()                       # Domain
-    case_id = StringProperty()                      # Reference to the CommCareCase
+    case_id = StringProperty()                      # ID of the corresponding case
+    recipient_id = StringProperty()                 # The ID of the recipient, could be case, user, sample etc.
     handler_id = StringProperty()                   # Reference to the CaseReminderHandler
-    user_id = StringProperty()                      # Reference to the CommCareUser who will receive the SMS messages
     method = StringProperty(choices=METHOD_CHOICES) # See CaseReminderHandler.method
     next_fire = DateTimeProperty()                  # The date and time that the next message should go out
     last_fired = DateTimeProperty()                 # The date and time that the last message went out
@@ -946,7 +951,6 @@ class CaseReminder(Document, LockableMixIn):
     callback_try_count = IntegerProperty()          # Keeps track of the number of times a callback has timed out
     skip_remaining_timeouts = BooleanProperty()     # An event handling method can set this to True to skip the remaining timeout intervals for the current event
     start_condition_datetime = DateTimeProperty()   # The date and time matching the case property specified by the CaseReminderHandler.start_condition
-    sample_id = StringProperty()
     xforms_session_ids = ListProperty(StringProperty)
     error_retry_count = IntegerProperty(default=0)
     last_scheduled_fire_time = DateTimeProperty()
@@ -964,16 +968,16 @@ class CaseReminder(Document, LockableMixIn):
 
     @property
     def case(self):
-        if self.case_id is not None:
+        if self.case_id:
             return CommCareCase.get(self.case_id)
         else:
             return None
 
     @property
     def user(self):
-        if self.handler.recipient == RECIPIENT_USER:
+        if self.handler.recipient_type == RECIPIENT_USER:
             try:
-                return CommCareUser.get_by_user_id(self.user_id)
+                return CommCareUser.get_by_user_id(self.recipient_id)
             except Exception:
                 self.retire()
                 return None
@@ -983,15 +987,15 @@ class CaseReminder(Document, LockableMixIn):
     @property
     def recipient(self):
         handler = self.handler
-        if handler.recipient == RECIPIENT_USER:
+        if handler.recipient_type == RECIPIENT_USER:
             return self.user
-        elif handler.recipient == RECIPIENT_CASE:
-            return CommConnectCase.get(self.case_id)
-        elif handler.recipient == RECIPIENT_SURVEY_SAMPLE:
-            return CommCareCaseGroup.get(self.sample_id)
-        elif handler.recipient == RECIPIENT_OWNER:
+        elif handler.recipient_type == RECIPIENT_CASE:
+            return self.case
+        elif handler.recipient_type == RECIPIENT_SURVEY_SAMPLE:
+            return CommCareCaseGroup.get(self.recipient_id)
+        elif handler.recipient_type == RECIPIENT_OWNER:
             return get_wrapped_owner(get_owner_id(self.case))
-        elif handler.recipient == RECIPIENT_PARENT_CASE:
+        elif handler.recipient_type == RECIPIENT_PARENT_CASE:
             indices = self.case.indices
             for index in indices:
                 # TODO: The data model allows for more than one parent.
@@ -999,7 +1003,7 @@ class CaseReminder(Document, LockableMixIn):
                 if index.identifier == "parent":
                     return CommConnectCase.get(index.referenced_id)
             return None
-        elif handler.recipient == RECIPIENT_SUBCASE:
+        elif handler.recipient_type == RECIPIENT_SUBCASE:
             indices = self.case.reverse_indices
             recipients = []
             for index in indices:
