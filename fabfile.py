@@ -73,6 +73,7 @@ env.roledefs = {
     'deploy': [],
 }
 
+env.django_bind = '127.0.0.1'
 
 def format_env(current_env):
     """
@@ -96,6 +97,7 @@ def format_env(current_env):
         'jython_home',
         'virtualenv_root',
         'django_port',
+        'django_bind',
         'flower_port',
     ]
 
@@ -145,6 +147,7 @@ def setup_dirs():
     sudo('mkdir -p %(services)s/supervisor' % env, user=env.sudo_user)
 
 
+
 @task
 def india():
     """Our production server in India."""
@@ -189,7 +192,7 @@ def zambia():
     env.code_branch = 'master'
     env.should_migrate = True
 
-    env.hosts = ['44.222.19.153']  # LIKELY THAT THIS WILL CHANGE
+    env.hosts = ['41.222.19.153']  # LIKELY THAT THIS WILL CHANGE
 
     _setup_path()
 
@@ -205,7 +208,7 @@ def zambia():
         'lb': [],
         'deploy': [],
 
-        'django_monolith': ['44.222.19.153'],
+        'django_monolith': ['41.222.19.153'],
     }
     env.roles = ['django_monolith']
     env.es_endpoint = 'localhost'
@@ -217,6 +220,7 @@ def production():
     """www.commcarehq.org"""
     env.sudo_user = 'cchq'
     env.environment = 'production'
+    env.django_bind = '0.0.0.0'
     env.django_port = '9010'
     env.should_migrate = True
 
@@ -234,10 +238,9 @@ def production():
         'rabbitmq': ['hqdb0.internal.commcarehq.org'],
         'django_celery': ['hqdb0.internal.commcarehq.org'],
         'django_app': [
-            'hqdjango0.internal.commcarehq.org',
-            'hqdjango1.internal.commcarehq.org',
             'hqdjango3.internal.commcarehq.org',
             'hqdjango4.internal.commcarehq.org',
+            'hqdjango5.internal.commcarehq.org',
         ],
         'django_pillowtop': ['hqdb0.internal.commcarehq.org'],
 
@@ -245,7 +248,7 @@ def production():
         # will remove hqdjango0 once we verify it works well on hqdb0
         'formsplayer': ['hqdb0.internal.commcarehq.org'],
         'lb': [],
-        'staticfiles': ['hqproxy0.internal.commcarehq.org'],
+        'staticfiles': ['hqproxy0.internal.commcarehq.org', 'hqproxy1.internal.commcarehq.org'],
         # having deploy here makes it so that
         # we don't get prompted for a host or run deploy too many times
         'deploy': ['hqdb0.internal.commcarehq.org'],
@@ -277,6 +280,7 @@ def staging():
 
     env.sudo_user = 'cchq'
     env.environment = 'staging'
+    env.django_bind = '0.0.0.0'
     env.django_port = '9010'
 
     env.should_migrate = True
@@ -291,7 +295,7 @@ def staging():
 
         'formsplayer': ['hqdjango1-staging.internal.commcarehq.org'],
         'lb': [],
-        'staticfiles': ['hqproxy0.internal.commcarehq.org'],
+        'staticfiles': ['hqproxy0.internal.commcarehq.org', 'hqproxy1.internal.commcarehq.org'],
         'deploy': ['hqdb0-staging.internal.commcarehq.org'],
         # fab complains if this doesn't exist
         'django_monolith': [],
@@ -325,6 +329,7 @@ def preview():
     env.code_branch = 'master'
     env.sudo_user = 'cchq'
     env.environment = 'preview'
+    env.django_bind = '0.0.0.0'
     env.django_port = '7999'
     env.should_migrate = False
 
@@ -341,7 +346,7 @@ def preview():
 
         'formsplayer': ['hqdjango0-preview.internal.commcarehq.org'],
         'lb': [],
-        'staticfiles': ['hqproxy0.internal.commcarehq.org'],
+        'staticfiles': ['hqproxy0.internal.commcarehq.org', 'hqproxy1.internal.commcarehq.org'],
         'deploy': ['hqdb0-preview.internal.commcarehq.org'],
         'django_monolith': [],
     }
@@ -355,6 +360,38 @@ def preview():
     env.flower_port = 5556
 
     _setup_path()
+
+
+
+
+@task
+def development():
+    """A development monolith target - must specify a host either by command line or prompt"""
+    env.sudo_user = 'cchq'
+    env.environment = 'development'
+    env.django_bind = '0.0.0.0'
+    env.django_port = '9010'
+    env.should_migrate = True
+
+    _setup_path()
+
+    env.roledefs = {
+        'couch': [],
+        'pg': [],
+        'rabbitmq': [],
+        'django_celery': [],
+        'django_app': [],
+        'django_pillowtop': [],
+        'formsplayer': [],
+        'staticfiles': [],
+        'lb': [],
+        'deploy': [],
+
+        'django_monolith': env.hosts
+    }
+    env.roles = ['django_monolith']
+    env.es_endpoint = 'localhost'
+    env.flower_port = 5555
 
 @task
 @roles('django_app','django_celery','staticfiles')
@@ -833,6 +870,7 @@ def flip_es_aliases():
         sudo('%(virtualenv_root)s/bin/python manage.py ptop_es_manage --flip_all_aliases' % env, user=env.sudo_user)
 
 
+@parallel
 @roles('staticfiles', 'django_monolith')
 def _do_collectstatic():
     """Collect static after a code update"""
@@ -953,6 +991,7 @@ def set_formsplayer_supervisorconf():
     _rebuild_supervisor_conf_file('make_supervisor_conf', 'supervisor_formsplayer.conf')
 
 
+@task
 def set_supervisor_config():
     """Upload and link Supervisor configuration from the template."""
     require('environment', provided_by=('staging', 'preview', 'production', 'india'))

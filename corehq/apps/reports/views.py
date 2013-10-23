@@ -2,6 +2,7 @@ from datetime import datetime, timedelta, date
 import json
 import tempfile
 import re
+from urllib2 import URLError
 from django.conf import settings
 from django.core.cache import cache
 from django.core.servers.basehttp import FileWrapper
@@ -502,7 +503,7 @@ def edit_scheduled_report(request, domain, scheduled_report_id=None,
             raise HttpResponseBadRequest()
     else:
         instance = ReportNotification(owner_id=user_id, domain=domain,
-                                      config_ids=[], day_of_week=-1, hours=8,
+                                      config_ids=[], hour=8,
                                       send_to_owner=True, recipient_emails=[])
 
     is_new = instance.new_document
@@ -530,6 +531,9 @@ def edit_scheduled_report(request, domain, scheduled_report_id=None,
         return HttpResponseRedirect(reverse('reports_home', args=(domain,)))
 
     context['form'] = form
+    context['day_value'] = getattr(instance, "day", 1)
+    context['weekly_day_options'] = ReportNotification.day_choices()
+    context['monthly_day_options'] = [(i, i) for i in range(1, 32)]
     if is_new:
         context['form_action'] = "Create a new"
         context['report']['title'] = "New Scheduled Report"
@@ -722,7 +726,10 @@ def generate_case_export_payload(domain, include_closed, format, group, user_fil
 @require_GET
 def download_cases(request, domain):
     include_closed = json.loads(request.GET.get('include_closed', 'false'))
-    format = Format.from_format(request.GET.get('format') or Format.XLS_2007)
+    try:
+        format = Format.from_format(request.GET.get('format') or Format.XLS_2007)
+    except URLError as e:
+        return HttpResponseBadRequest(e.reason)
     group = request.GET.get('group', None)
     user_filter, _ = FilterUsersField.get_user_filter(request)
 
