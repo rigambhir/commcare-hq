@@ -65,6 +65,7 @@ $(function() {
             </tbody>
         </table>
         {% include "reports/partials/save_reports_modal.html" %}
+    </div>
 
     {% if report.show %}
     <div class="tab-pane" id="scheduled-reports">
@@ -97,7 +98,7 @@ $(function() {
                         </ul>
                         {% endif %}
                     </td>
-                    <td>{{ report.day_name }} at {{ report.hours }}:00</td>
+                    <td>{{ report.day_name }} at {{ report.hour }}:00</td>
                     <td>
                         {# handles old documents #}
                         {% if report.user_ids or report.send_to_owner %}
