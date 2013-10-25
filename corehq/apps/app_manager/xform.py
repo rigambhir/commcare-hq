@@ -131,6 +131,15 @@ def raise_if_none(message):
     return decorator
 
 
+def autoset_owner_id_for_open_case(actions):
+    return not ('update_case' in actions and
+                'owner_id' in actions['update_case'].update)
+
+
+def autoset_owner_id_for_subcase(subcase):
+    return 'owner_id' not in subcase.case_properties
+
+
 class XForm(WrappedNode):
     """
     A bunch of utility functions for doing certain specific
@@ -640,6 +649,7 @@ class XForm(WrappedNode):
             )
 
             if autoset_owner_id:
+                form.get_app().autoset_owner_id = True
                 if form.get_app().case_sharing:
                     self.add_instance('groups', src='jr://fixture/user-groups')
                     add_setvalue_or_bind(
@@ -740,10 +750,7 @@ class XForm(WrappedNode):
                     case_name=open_case_action.name_path,
                     case_type=form.get_case_type(),
                     path='',
-                    autoset_owner_id=not (
-                        'update_case' in actions and
-                        'owner_id' in actions['update_case'].update
-                    ),
+                    autoset_owner_id=autoset_owner_id_for_open_case(actions),
                 )
                 if 'external_id' in actions['open_case'] and actions['open_case'].external_id:
                     extra_updates['external_id'] = actions['open_case'].external_id
@@ -863,7 +870,7 @@ class XForm(WrappedNode):
                     case_type=subcase.case_type,
                     path=path,
                     delay_case_id=bool(subcase.repeat_context),
-                    autoset_owner_id='owner_id' not in subcase.case_properties,
+                    autoset_owner_id=autoset_owner_id_for_subcase(subcase),
                 )
 
                 add_update_block(subcase_block, subcase.case_properties, path=path)
