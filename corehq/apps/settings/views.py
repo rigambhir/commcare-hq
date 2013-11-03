@@ -1,5 +1,6 @@
 from django.contrib import messages
 from django.contrib.auth.forms import PasswordChangeForm
+from django.views.decorators.http import require_POST
 import langcodes
 
 from django.http import HttpResponseRedirect, HttpResponse
@@ -107,7 +108,12 @@ class MyAccountSettingsView(BaseMyAccountView):
 
     def post(self, request, *args, **kwargs):
         if self.settings_form.is_valid():
+            old_lang = self.request.couch_user.language
             self.settings_form.update_user(existing_user=self.request.couch_user)
+            new_lang = self.request.couch_user.language
+            # set language in the session so it takes effect immediately
+            if new_lang != old_lang:
+                request.session['django_language'] = new_lang
         return self.get(request, *args, **kwargs)
 
 
@@ -182,3 +188,12 @@ class BaseProjectDataView(BaseDomainView):
     @property
     def section_url(self):
         return reverse('data_interfaces_default', args=[self.domain])
+
+
+@require_POST
+@require_superuser
+def keyboard_config(request):
+    request.couch_user.keyboard_shortcuts["enabled"] = bool(request.POST.get('enable'))
+    request.couch_user.keyboard_shortcuts["main_key"] = request.POST.get('main-key', 'option')
+    request.couch_user.save()
+    return HttpResponseRedirect(request.GET.get('next'))
