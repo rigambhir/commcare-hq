@@ -5,7 +5,7 @@
 {% load i18n %}
 
 {% block underscore %}
-    <script src="{% static 'formdesigner/js/lib/underscore-1.3.1.js' %}"></script>
+    <script src="{% static 'formdesigner/js/lib/underscore-1.5.2.js' %}"></script>
 {% endblock %}
 
 {% block js %}{{ block.super }}
@@ -13,6 +13,7 @@
     <script src="{% static 'formdesigner/js/lib/jquery.fancybox-1.3.4.pack.js' %}"></script>
     <script src="{% static 'formdesigner/js/lib/chosen.jquery.min.js' %}"></script>
     <script src="{% static 'formdesigner/js/lib/jquery-ui-timepicker-addon.js' %}"></script>
+    <script src="{% static 'formdesigner/js/lib/jquery.autocomplete.js' %}"></script>
     <script src="{% static 'formdesigner/js/lib/sha1.js' %}"></script>
     <script src="{% static 'formdesigner/js/lib/diff_match_patch.js' %}"></script>
 
@@ -26,14 +27,18 @@
     <script src="{% static 'formdesigner/js/lib/codemirror/codemirror.js' %}"></script>
     <script src="{% static 'formdesigner/js/lib/codemirror/xml.js' %}"></script>
 
-    <script src="{% static 'formdesigner/js/window.js' %}"></script>
+    <script src="{% static 'formdesigner/js/lib/classy-1.4.js' %}"></script>
+
+    <script src="{% static 'formdesigner/js/formdesigner.javarosa.js' %}"></script>
+    <script src="{% static 'formdesigner/js/formdesigner.commcare.js' %}"></script>
+    <script src="{% static 'formdesigner/js/window.js' %}"></script> {# wtf #}
     <script src="{% static 'formdesigner/js/util.js' %}"></script>
+    <script src="{% static 'formdesigner/js/multimedia.js' %}"></script>
+    <script src="{% static 'formdesigner/js/widgets.js' %}"></script>
     <script src="{% static 'formdesigner/js/model.js' %}"></script>
     <script src="{% static 'formdesigner/js/controller.js' %}"></script>
     <script src="{% static 'formdesigner/js/ui.js' %}"></script>
-    <script src="{% static 'formdesigner/js/widgets.js' %}"></script>
-    <script src="{% static 'formdesigner/js/multimedia.js' %}"></script>
-    <script src="{% static 'formdesigner/js/window.js' %}"></script>
+    <script src="{% static 'formdesigner/js/window.js' %}"></script>  {# wtf #}
 
     {% include 'hqmedia/partials/multimedia_js.html' %} {# todo We should have a discussion at some point how we'd like to organize this in the future. #}
 {% endblock %}
