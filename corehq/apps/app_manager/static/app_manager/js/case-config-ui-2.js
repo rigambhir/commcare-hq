@@ -1,4 +1,4 @@
-/*globals $, COMMCAREHQ */
+/*globals $, _, ko, COMMCAREHQ */
 
 var CaseConfig = (function () {
     "use strict";
@@ -91,6 +91,9 @@ var CaseConfig = (function () {
         self.reserved_words = params.reserved_words;
         self.moduleCaseTypes = params.moduleCaseTypes;
         self.propertiesMap = {};
+        self.showCaseReferences = params.showCaseReferences;
+        self.caseReferences = params.caseReferences;
+        self.caseReferenceTypes = params.caseReferenceTypes;
         self.utils = utils;
 
         self.setPropertiesMap = function (propertiesMap) {
@@ -350,6 +353,23 @@ var CaseConfig = (function () {
                 });
             }
 
+            self.case_references = _(caseConfig.caseReferences).map(
+                function (references, question) {
+                    return {
+                        question: question,
+                        // get rid of case_type and encode 'parent/' in name
+                        references: _(references).map(function (r) {
+                            if (r.case_type === 'parent_case') {
+                                r.property = 'parent/' + r.property;
+                            }
+                            delete r.case_type;
+                            return r;
+                        })
+                    };
+                }
+            );
+            self.show_case_references = caseConfig.showCaseReferences;
+
             self.repeat_context = function () {
                 return self.caseConfig.get_repeat_context(self.case_name());
             };
@@ -361,7 +381,6 @@ var CaseConfig = (function () {
                     } else {
                         return false;
                     }
-
                 },
                 write: function (value) {
                     self.close_condition.type(value ? 'always' : 'never');
@@ -721,6 +740,18 @@ var CaseConfig = (function () {
     };
 
     var action_names = ["open_case", "update_case", "close_case", "case_preload"];
+    CaseConfig.prototype.getQuestionLabel = function (path) {
+        for (var i = 0; i < this.questions.length; i += 1) {
+            var q = this.questions[i];
+            if (q.value === path) {
+                return q.label;
+            }
+        }
+        return path;
+    };
+    CaseConfig.prototype.getPropertyName = function (property) {
+        return this.caseReferenceTypes[property];
+    }
     CaseConfig.prototype.getQuestions = function (filter, excludeHidden, includeRepeat) {
         // filter can be "all", or any of "select1", "select", or "input" separated by spaces
         var i, options = [],

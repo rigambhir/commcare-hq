@@ -45,6 +45,8 @@ from dimagi.utils.couch.database import get_db
 from dimagi.utils.couch.resource_conflict import retry_resource
 from corehq.apps.app_manager.xform import XFormError, XFormValidationError, CaseError,\
     XForm
+from corehq.apps.app_manager.case_in_form import (get_validated_references,
+        get_reftype_names)
 from corehq.apps.builds.models import CommCareBuildConfig, BuildSpec
 from corehq.apps.users.decorators import require_permission
 from corehq.apps.users.models import Permissions, CommCareUser
@@ -666,10 +668,13 @@ def view_generic(req, domain, app_id=None, module_id=None, form_id=None, is_user
 
     if form:
         template = "app_manager/form_view.html"
-        context.update({
-            'case_properties': get_all_case_properties(app),
-        })
         context.update(get_form_view_context(req, form, context['langs'], is_user_registration))
+        context.update({
+            'case_management_in_vellum': app.case_management_in_vellum,
+            'case_properties': get_all_case_properties(app),
+            'case_references': get_validated_references(form),
+            'case_reference_types': get_reftype_names(),
+        })
     elif module:
         template, module_context = get_module_view_context_and_template(app, module)
         context.update(module_context)
