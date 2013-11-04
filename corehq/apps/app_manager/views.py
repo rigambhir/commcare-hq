@@ -327,9 +327,9 @@ def get_form_view_context(request, form, langs, is_user_registration, messages=m
         xform = form.wrapped_xform()
     except XFormError as e:
         form_errors.append("Error in form: %s" % e)
-    except Exception as e:
-        logging.exception(e)
-        form_errors.append("Unexpected error in form: %s" % e)
+    #except Exception as e:
+        #logging.exception(e)
+        #form_errors.append("Unexpected error in form: %s" % e)
 
     if xform and xform.exists():
         if xform.already_has_meta():
@@ -771,27 +771,54 @@ def form_designer(req, domain, app_id, module_id=None, form_id=None,
     app = get_app(domain, app_id)
 
     if is_user_registration:
-        form = app.get_user_registration()
+        current_form = app.get_user_registration()
     else:
         try:
-            module = app.get_module(module_id)
+            current_module = app.get_module(module_id)
         except IndexError:
             return bail(req, domain, app_id, not_found="module")
         try:
-            form = module.get_form(form_id)
+            current_form = current_module.get_form(form_id)
         except IndexError:
             return bail(req, domain, app_id, not_found="form")
 
     context = get_apps_base_context(req, domain, app)
-    context.update(locals())
     context.update({
+        'app': app,
+        'module': current_module,
+        'form': current_form,
         'edit': True,
-        'nav_form': form if not is_user_registration else '',
+        'nav_form': current_form if not is_user_registration else '',
         'formdesigner': True,
         'multimedia_object_map': app.get_object_map()
     })
-    return render(req, 'app_manager/form_designer.html', context)
 
+    if app.case_management_in_vellum:
+        modules = []
+        for module in app.get_modules():
+            forms = []
+            for form in module.get_forms():
+                questions, _ = _questions_for_form(req, form, context['langs'])
+                forms.append({
+                    'name': form.name,
+                    'questions': questions,
+                    'actions': form.actions.to_json(),
+                })
+
+            modules.append({
+                'name': module.name,
+                'case_type': module.case_type,
+                'forms': forms
+            })
+
+        context['commcare_options'] = {
+            'current_module': int(module_id),
+            'current_form': int(form_id),
+            'modules': modules,
+            'case_reserved_words': load_case_reserved_words(),
+        }
+
+    return render(req, 'app_manager/form_designer.html', context)
 
 
 @no_conflict_require_POST
@@ -1071,22 +1098,36 @@ def _handle_media_edits(request, item, should_edit, resp):
 @login_or_digest
 @require_permission(Permissions.edit_apps, login_decorator=None)
 def patch_xform(request, domain, app_id, unique_form_id):
-    patch = request.POST['patch']
-    sha1_checksum = request.POST['sha1']
+    # todo: hash form actions too (do JSON.stringify() and json.dumps behave
+    # identically?)
+    def hash(form):
+        return hashlib.sha1(form.source.encode('utf-8')).hexdigest()
+
+    try:
+        POST = json.loads(request.raw_post_data)
+    except Exception:
+        POST = request.POST
+    patch = POST['patch']
+    sha1_checksum = POST['sha1']
 
     app = get_app(domain, app_id)
     form = app.get_form(unique_form_id)
 
     current_xml = form.source
-    if hashlib.sha1(current_xml.encode('utf-8')).hexdigest() != sha1_checksum:
+    if hash(form) != sha1_checksum:
         return json_response({'status': 'conflict', 'xform': current_xml})
 
     dmp = diff_match_patch()
     xform, _ = dmp.patch_apply(dmp.patch_fromText(patch), current_xml)
+
     save_xform(app, form, xform)
+    try:
+        form.actions = FormActions.wrap(POST['formActions'])
+    except KeyError:
+        pass # whoa
     response_json = {
         'status': 'ok',
-        'sha1': hashlib.sha1(form.source.encode('utf-8')).hexdigest()
+        'sha1': hash(form)
     }
     app.save(response_json)
     return json_response(response_json)
