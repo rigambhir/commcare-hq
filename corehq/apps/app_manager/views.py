@@ -1430,6 +1430,7 @@ def edit_app_attr(request, domain, app_id, attr):
         'cloudcare_enabled',
         'application_version',
         'case_sharing',
+        'case_management_in_vellum',
         'translation_strategy'
         # RemoteApp only
         'profile_url',
@@ -1447,6 +1448,7 @@ def edit_app_attr(request, domain, app_id, attr):
         ('build_spec', BuildSpec.from_string),
         ('case_sharing', None),
         ('cloudcare_enabled', None),
+        ('case_management_in_vellum', None),
         ('manage_urls', None),
         ('name', None),
         ('platform', None),
