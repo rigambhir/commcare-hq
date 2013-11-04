@@ -91,6 +91,8 @@ var CaseConfig = (function () {
         self.reserved_words = params.reserved_words;
         self.moduleCaseTypes = params.moduleCaseTypes;
         self.propertiesMap = {};
+        self.caseReferences = params.caseReferences;
+        self.caseReferenceTypes = params.caseReferenceTypes;
         self.utils = utils;
 
         self.setPropertiesMap = function (propertiesMap) {
@@ -349,6 +351,8 @@ var CaseConfig = (function () {
                     return count;
                 });
             }
+
+            self.case_references = caseConfig.caseReferences;
 
             self.repeat_context = function () {
                 return self.caseConfig.get_repeat_context(self.case_name());
@@ -720,6 +724,18 @@ var CaseConfig = (function () {
     };
 
     var action_names = ["open_case", "update_case", "close_case", "case_preload"];
+    CaseConfig.prototype.getQuestionLabel = function (path) {
+        for (var i = 0; i < this.questions.length; i += 1) {
+            var q = this.questions[i];
+            if (q.value === path) {
+                return q.label;
+            }
+        }
+        return path;
+    };
+    CaseConfig.prototype.getPropertyName = function (property) {
+        return this.caseReferenceTypes[property];
+    }
     CaseConfig.prototype.getQuestions = function (filter, excludeHidden, includeRepeat) {
         // filter can be "all", or any of "select1", "select", or "input" separated by spaces
         var i, options = [],
