@@ -167,7 +167,7 @@ def bail(req, domain, app_id, not_found=""):
 
 def _get_xform_source(request, app, form, filename="form.xml"):
     download = json.loads(request.GET.get('download', 'false'))
-    lang = request.COOKIES.get('lang', app.langs[0])
+    lang = get_lang(request, app)
     source = form.source
     if download:
         response = HttpResponse(source)
@@ -468,7 +468,6 @@ def get_langs(request, app):
 
 
 def _clear_app_cache(request, domain):
-    from corehq import ApplicationsTab
     ApplicationBase.get_db().view('app_manager/applications_brief',
         startkey=[domain],
         limit=1,
@@ -483,6 +482,8 @@ def _clear_app_cache(request, domain):
         ])
         cache.delete(key)
 
+def get_lang(request, app):
+    return request.COOKIES.get('lang', app.langs[0])
 
 def get_apps_base_context(request, domain, app):
 
@@ -815,7 +816,7 @@ def new_app(req, domain):
 def new_module(req, domain, app_id):
     "Adds a module to an app"
     app = get_app(domain, app_id)
-    lang = req.COOKIES.get('lang', app.langs[0])
+    lang = get_lang(req, app)
     name = req.POST.get('name')
     module_type = req.POST.get('module_type', 'case')
     if module_type == 'case':
@@ -841,7 +842,7 @@ def new_care_plan_module(req, domain, app, name, lang):
 def new_form(req, domain, app_id, module_id):
     "Adds a form to an app (under a module)"
     app = get_app(domain, app_id)
-    lang = req.COOKIES.get('lang', app.langs[0])
+    lang = get_lang(req, app)
     name = req.POST.get('name')
     form = app.new_form(module_id, name, lang)
     app.save()
@@ -969,7 +970,7 @@ def edit_module_attr(req, domain, app_id, module_id, attr):
 
     app = get_app(domain, app_id)
     module = app.get_module(module_id)
-    lang = req.COOKIES.get('lang', app.langs[0])
+    lang = get_lang(req, app)
     resp = {'update': {}}
     if should_edit("case_type"):
         case_type = req.POST.get("case_type", None)
@@ -1098,7 +1099,7 @@ def edit_form_attr(req, domain, app_id, unique_form_id, attr):
 
     app = get_app(domain, app_id)
     form = app.get_form(unique_form_id)
-    lang = req.COOKIES.get('lang', app.langs[0])
+    lang = get_lang(req, app)
     ajax = json.loads(req.POST.get('ajax', 'true'))
 
     resp = {}
