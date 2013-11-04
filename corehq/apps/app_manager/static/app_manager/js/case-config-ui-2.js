@@ -726,7 +726,7 @@ var CaseConfig = (function () {
             q;
         excludeHidden = excludeHidden || false;
         includeRepeat = includeRepeat || false;
-        filter = filter.split(" ");
+        filter = filter.split(" ").concat(['label', 'trigger']);
         if (!excludeHidden) {
             filter.push('hidden');
         }

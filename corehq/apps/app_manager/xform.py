@@ -401,9 +401,6 @@ class XForm(WrappedNode):
             excluded_paths.add(path)
 
         def for_each_leaf_control_node(node, path, repeat_context, items):
-            if node.tag_name in ("trigger", "label"):
-                return
-
             question = {
                 "label": self.get_label_text(node, langs),
                 "tag": node.tag_name,
