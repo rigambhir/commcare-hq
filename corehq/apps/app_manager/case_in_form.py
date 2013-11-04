@@ -49,17 +49,20 @@ Renaming not handled/undefined behavior for:
 """
 
 import re
+from collections import defaultdict
 from xml.etree import ElementTree
 
-from django.utils.translation import ugettext_noop
+from django.utils.translation import ugettext_noop, ugettext as _
 
-from corehq.apps.app_manager.models import Application
+#from corehq.apps.app_manager.models import Application
 from corehq.apps.app_manager.xform import XFormError
+from corehq.apps.app_manager.util import (get_all_case_properties,
+        ParentCasePropertyBuilder)
 
 
-
-__all__ = ['get_relevant_references', 'update_references', 'RefType',
-    'ModuleType']
+__all__ = ['get_references', 'get_validated_references', 'get_reftype_names'
+    #'RefType', 'ModuleType'
+]
 
 # these are duplicated in formdesigner.commcare.js
 PROPERTY_NAME = r"([a-zA-Z][\w_-]*)"
@@ -104,85 +107,97 @@ REFTYPE_NAMES = {
     RefType.HINT_ITEXT: ugettext_noop('Hint Message')
 }
 
-class ModuleType(object):
-    PARENT = 'parent_module'   # may not necessarily actually have any child forms
-    CHILD = 'child_module'
+def get_reftype_names():
+    """Get translated names for attributes that can reference a case
+    property"""
+    return dict([(k, _(v)) for (k, v) in REFTYPE_NAMES.items()])
+
+#class ModuleType(object):
+    #PARENT = 'parent_module'   # may not necessarily actually have any child forms
+    #CHILD = 'child_module'
 
 
-def get_relevant_references(project, form=None, validate=True):
-    """
-    Returns a list of relevant case property references for each form in this
-    project that has a case type or a parent case type which can be saved to by
-    `form`.
+#def get_relevant_references(project, form=None, validate=True):
+    #"""
+    #Returns a list of relevant case property references for each form in this
+    #project that has a case type or a parent case type which can be saved to by
+    #`form`.
 
-    If `form` is None, return all references in the project.
-    """
-    app_structure = get_relevant_app_structure(project, form)
-    for app in app_structure:
-        for module in app['modules']:
-            for form in module['forms']:
-                form['references'] = [
-                    r for r in get_references(form['form'])
-                    if (
-                        (module['module_type'] == ModuleType.CHILD and
-                        r['case_type'] == RefType.PARENT_CASE) or
-                        (module['module_type'] == ModuleType.PARENT and
-                        r['case_type'] == RefType.OWN_CASE)
-                    )
-                ]
-    return app_structure
-
-
-def get_relevant_app_structure(project, ref_form=None):
-    """
-    Return a tree of the relevant app structure for forms in the project which
-    can save to `ref_form`'s case type as their own, parent, or child case
-    type.
-    If `ref_form` is None, everything is returned.
-    """
-    apps = Application.by_domain(project.name)
-    own_case_type = ref_form.get_module().case_type if ref_form else None
-
-    # user registration forms?
-    relevant_apps = []
-    for app in apps:
-        relevant_modules = []
-        for module in app.get_modules():
-            if not ref_form or module.case_type == own_case_type:
-                module_type = ModuleType.PARENT
-                relevant_forms = [{
-                    'form': form,
-                } for form in module.get_forms()]
-            else:
-                module_type = ModuleType.CHILD
-                relevant_forms = [{
-                    'form': form,
-                } for form in module.get_forms()
-                    if form.actions.subcases.case_type == own_case_type]
-            if relevant_forms:
-                relevant_modules.append({
-                    'module': module,
-                    'module_type': module_type,
-                    'forms': relevant_forms
-                })
-        if relevant_modules:
-            relevant_apps.append({
-                'app': app,
-                'modules': relevant_modules
-            })
-    return relevant_apps
+    #If `form` is None, return all references in the project.
+    #"""
+    #app_structure = get_relevant_app_structure(project, form)
+    #for app in app_structure:
+        #for module in app['modules']:
+            #for form in module['forms']:
+                #form['references'] = [
+                    #r for r in get_references(form['form'])
+                    #if (
+                        #(module['module_type'] == ModuleType.CHILD and
+                        #r['case_type'] == RefType.PARENT_CASE) or
+                        #(module['module_type'] == ModuleType.PARENT and
+                        #r['case_type'] == RefType.OWN_CASE)
+                    #)
+                #]
+    #return app_structure
 
 
-def get_references(form, validate=False):
+#def get_case_properties(project):
+    #apps = Application.by_domain(project.name)
+
+    ## dict per case type, of property name -> list of source questions
+    #properties = defaultdict(lambda: defaultdict(list))
+
+    ## first we need to figure out the parent case type.
+    ## One case type could be created from multiple parent case types but for
+    ## now we aren't going to do anything with that information.
+    ##parent_case_types = []
+    ##for app in apps:
+        ##for module in app.get_modules():
+            ##for form in module.get_forms():
+                ##if any(s.case_type == own_case_type for s in
+                        ##form.actions.subcases):
+                    ##parent_case_types.append(module.case_type)
+
+    #def process_form(form):
+        #module = form.get_module()
+        #form_case_type = module.case_type
+        #questions_by_path = defaultdict(lambda: None, (
+            #(q['value'], dict(form_id=form.id, module_id=module.id, **q))
+            #for q in form.questions))
+        #open_case = form.actions.open_case
+        #update_case = form.actions.update_case
+
+        #if open_case.condition.type != 'never' and open_case.name_path:
+            #properties[form_case_type]['name'].append(
+                    #questions_by_path[open_case.name_path])
+
+        #if update_case.condition.type != 'never':
+            #for property, path in update_case.update.items():
+                #properties[form_case_type][property].append(
+                        #questions_by_path[path])
+
+        #for subcase in form.actions.subcases:
+            #properties[subcase.case_type]['name'].append(
+                    #questions_by_path[subcase.case_name])
+            #for property, path in subcase.case_properties.items():
+                #properties[subcase.case_type][property].append(
+                        #questions_by_path[path])
+
+    ## user registration forms?
+    #for app in apps:
+        #for module in app.get_modules():
+            #for form in module.get_forms():
+                #process_form(form)
+    #return properties
+
+def get_references(form):
     """
     Get all case property references in `xform`
     [
         {
             'question': '/data/question1',
-            'case_type': RefType.OWN_CASE|PARENT_CASE, (OR a raw case type, for
-            subcase updates!)
+            'case_type': RefType.OWN_CASE|RefType.PARENT_CASE,
             'property': 'foo',
-            #'valid': True,
             'type': RefType.FOO,
         }
     ]
@@ -190,29 +205,36 @@ def get_references(form, validate=False):
     multiple references in the same condition, or multiple references in the
     same itext message in different languages).
     """
-    all_references = []
+    all_references = defaultdict(list)
     def collect_parsed_references(property_value):
         value = property_value['value']
+        question = property_value.pop('question')
         for r in parse_references(value):
-            all_references.append(dict(r, **property_value))
+            # for now we don't care about multiple references to the same property in
+            # the same question and attribute
+            ref = dict(r, **property_value)
+            if all(ref != x for x in all_references[question]):
+                all_references[question].append(ref)
         return value
     for_each_property_value(form.wrapped_xform(), collect_parsed_references)
 
-    # for now we don't care about multiple references to the same property in
-    # the same question and attribute
-    filtered_references = {}
-    for r in all_references:
-        # don't care about attribute value for now
-        r.pop('value')
-        filtered_references.setdefault(r['question'], {})
-        filtered_references[r['question']][tuple(sorted(r.items()))] = r
-    filtered_references = [{
-        'question': q,
-        'references': r.values()
-    } for q, r in filtered_references.items()]
+    return all_references # + get_save_to_case_references(form)
 
-    return filtered_references # + get_save_to_case_references(form)
+def get_validated_references(form):
+    references = get_references(form)
 
+    case_type = form.get_module().case_type
+    case_properties = get_all_case_properties(form.get_app())[case_type]
+
+    for question, refs in references.items():
+        for r in refs:
+            if r['case_type'] == RefType.OWN_CASE:
+                property = r['property']
+            else:  # PARENT_CASE
+                property = 'parent/%s' % r['property']
+            r['valid'] = property in case_properties
+
+    return references
 
 #def get_save_to_case_references(form):
     #references = []

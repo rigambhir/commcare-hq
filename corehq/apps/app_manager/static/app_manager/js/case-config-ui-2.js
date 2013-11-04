@@ -1,4 +1,4 @@
-/*globals $, COMMCAREHQ */
+/*globals $, _, ko, COMMCAREHQ */
 
 var CaseConfig = (function () {
     "use strict";
@@ -91,6 +91,7 @@ var CaseConfig = (function () {
         self.reserved_words = params.reserved_words;
         self.moduleCaseTypes = params.moduleCaseTypes;
         self.propertiesMap = {};
+        self.showCaseReferences = params.showCaseReferences;
         self.caseReferences = params.caseReferences;
         self.caseReferenceTypes = params.caseReferenceTypes;
         self.utils = utils;
@@ -352,7 +353,22 @@ var CaseConfig = (function () {
                 });
             }
 
-            self.case_references = caseConfig.caseReferences;
+            self.case_references = _(caseConfig.caseReferences).map(
+                function (references, question) {
+                    return {
+                        question: question,
+                        // get rid of case_type and encode 'parent/' in name
+                        references: _(references).map(function (r) {
+                            if (r.case_type === 'parent_case') {
+                                r.property = 'parent/' + r.property;
+                            }
+                            delete r.case_type;
+                            return r;
+                        })
+                    };
+                }
+            );
+            self.show_case_references = caseConfig.showCaseReferences;
 
             self.repeat_context = function () {
                 return self.caseConfig.get_repeat_context(self.case_name());
@@ -365,7 +381,6 @@ var CaseConfig = (function () {
                     } else {
                         return false;
                     }
-
                 },
                 write: function (value) {
                     self.close_condition.type(value ? 'always' : 'never');

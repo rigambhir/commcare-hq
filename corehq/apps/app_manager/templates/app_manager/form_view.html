@@ -164,6 +164,7 @@
                 moduleCaseTypes: {{ module_case_types|JSON }},
                 caseType: {{ form.get_case_type|JSON }},
                 propertiesMap: {{ case_properties|JSON }},
+                showCaseReferences: {{ case_management_in_vellum|JSON }},
                 caseReferences: {{ case_references|JSON }},
                 caseReferenceTypes: {{ case_reference_types|JSON }}
                 {% if app.application_version != '1.0' %}
