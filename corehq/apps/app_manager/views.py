@@ -57,7 +57,7 @@ from dimagi.utils.web import json_response, json_request
 from corehq.apps.reports import util as report_utils
 from corehq.apps.domain.decorators import login_and_domain_required, login_or_digest
 from corehq.apps.app_manager.models import Application, get_app, DetailColumn, Form, FormActions,\
-    AppError, load_case_reserved_words, ApplicationBase, DeleteFormRecord, DeleteModuleRecord, DeleteApplicationRecord, str_to_cls, validate_lang, SavedAppBuild, ParentSelect, Module
+    AppError, load_case_reserved_words, ApplicationBase, DeleteFormRecord, DeleteModuleRecord, DeleteApplicationRecord, str_to_cls, validate_lang, SavedAppBuild, ParentSelect, Module, CareplanModule
 from corehq.apps.app_manager.models import DETAIL_TYPES, import_app as import_app_util, SortElement
 from dimagi.utils.web import get_url_base
 from corehq.apps.app_manager.decorators import safe_download, no_conflict_require_POST
@@ -787,15 +787,23 @@ def new_module(req, domain, app_id):
         response = back_to_main(req, domain, app_id=app_id, module_id=module_id)
         response.set_cookie('suppress_build_errors', 'yes')
         return response
-    elif module_type == 'care-plan':
-        return new_care_plan_module(req, domain, app, name, lang)
+    elif module_type == 'careplan':
+        return _new_careplan_module(req, domain, app, name, lang)
     else:
         logger.error('Unexpected module type for new module: "%s"' % module_type)
         return back_to_main(req, domain, app_id=app_id)
 
-def new_care_plan_module(req, domain, app, name, lang):
-    messages.warning(req, 'Care Plan modules coming soon')
-    return back_to_main(req, domain, app_id=app.id)
+
+def _new_careplan_module(req, domain, app, name, lang):
+    target_module_id = req.POST.get('target_module_id')
+    target_case_type = app.get_module(target_module_id).case_type
+    module = app.add_module(CareplanModule.new_module(name, lang, target_module_id, target_case_type))
+    app.save()
+    response = back_to_main(req, domain, app_id=app.id, module_id=module.id)
+    response.set_cookie('suppress_build_errors', 'yes')
+    messages.warning(req, 'Care Plan modules are a work in progress!')
+    return response
+
 
 @no_conflict_require_POST
 @require_can_edit_apps

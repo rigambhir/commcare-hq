@@ -31,7 +31,8 @@ from restkit.errors import ResourceError
 from couchdbkit.resource import ResourceNotFound
 
 from corehq.apps.app_manager.commcare_settings import check_condition
-from corehq.apps.app_manager.const import APP_V1, APP_V2
+from corehq.apps.app_manager.const import APP_V1, APP_V2, CAREPLAN_TASK, CAREPLAN_GOAL, \
+    CAREPLAN_DEFAULT_CASE_PROPERTIES, CAREPLAN_NAME_PATH
 from corehq.apps.app_manager.xpath import dot_interpolate
 from corehq.util.hash_compat import make_password
 from dimagi.utils.couch.lazy_attachment_doc import LazyAttachmentDoc
@@ -876,25 +877,64 @@ class DetailPair(DocumentSchema):
         return self
 
 
-class Module(IndexedSchema, NavMenuItemMediaMixin):
+class ModuleBase(IndexedSchema, NavMenuItemMediaMixin):
+    name = DictProperty()
+    unique_id = StringProperty()
+    case_type = StringProperty()
+
+    # this is a generic property that you should override
+    forms = ListProperty()
+
+    @classmethod
+    def wrap(cls, data):
+        if cls is ModuleBase:
+            doc_type = data['doc_type']
+            if doc_type == 'Module':
+                return Module.wrap(data)
+            elif doc_type == 'CareplanModule':
+                return CareplanModule.wrap(data)
+            else:
+                raise ValueError('Unexpected doc_type for Module', doc_type)
+        else:
+            return super(ModuleBase, cls).wrap(data)
+
+    def get_or_create_unique_id(self):
+        """
+        It is the caller's responsibility to save the Application
+        after calling this function.
+
+        WARNING: If called on the same doc in different requests without saving,
+        this function will return a different uuid each time,
+        likely causing unexpected behavior
+
+        """
+        if not self.unique_id:
+            self.unique_id = FormBase.generate_id()
+        return self.unique_id
+
+    get_forms = IndexedSchema.Getter('forms')
+
+    @parse_int([1])
+    def get_form(self, i):
+        self__forms = self.forms
+        return self__forms[i].with_id(i%len(self.forms), self)
+
+class Module(ModuleBase):
     """
     A group of related forms, and configuration that applies to them all.
     Translates to a top-level menu on the phone.
 
     """
-    name = DictProperty()
     case_label = DictProperty()
     referral_label = DictProperty()
     forms = SchemaListProperty(Form)
     case_details = SchemaProperty(DetailPair)
     ref_details = SchemaProperty(DetailPair)
-    case_type = StringProperty()
     put_in_root = BooleanProperty(default=False)
     case_list = SchemaProperty(CaseList)
     referral_list = SchemaProperty(CaseList)
     task_list = SchemaProperty(CaseList)
     parent_select = SchemaProperty(ParentSelect)
-    unique_id = StringProperty()
 
     @classmethod
     def wrap(cls, data):
@@ -937,20 +977,6 @@ class Module(IndexedSchema, NavMenuItemMediaMixin):
             ),
         )
 
-    def get_or_create_unique_id(self):
-        """
-        It is the caller's responsibility to save the Application
-        after calling this function.
-
-        WARNING: If called on the same doc in different requests without saving,
-        this function will return a different uuid each time,
-        likely causing unexpected behavior
-
-        """
-        if not self.unique_id:
-            self.unique_id = FormBase.generate_id()
-        return self.unique_id
-
     def rename_lang(self, old_lang, new_lang):
         _rename_key(self.name, old_lang, new_lang)
         for form in self.get_forms():
@@ -959,13 +985,6 @@ class Module(IndexedSchema, NavMenuItemMediaMixin):
             detail.rename_lang(old_lang, new_lang)
         for case_list in (self.case_list, self.referral_list):
             case_list.rename_lang(old_lang, new_lang)
-
-    get_forms = IndexedSchema.Getter('forms')
-
-    @parse_int([1])
-    def get_form(self, i):
-        self__forms = self.forms
-        return self__forms[i].with_id(i%len(self.forms), self)
 
     def get_details(self):
         return (
@@ -991,7 +1010,7 @@ class Module(IndexedSchema, NavMenuItemMediaMixin):
 
     def export_jvalue(self):
         return self.export_json(dump_json=False, keep_unique_id=True)
-    
+
     def requires(self):
         r = set(["none"])
         for form in self.get_forms():
@@ -1024,6 +1043,86 @@ class Module(IndexedSchema, NavMenuItemMediaMixin):
     @memoized
     def all_forms_require_a_case(self):
         return all([form.requires == 'case' for form in self.get_forms()])
+
+
+class CareplanForm(FormBase, IndexedSchema, NavMenuItemMediaMixin):
+
+    case_type = StringProperty(required=True, choices=[CAREPLAN_GOAL, CAREPLAN_TASK])
+    mode = StringProperty(required=True, choices=['create', 'update'])
+    custom_case_updates = DictProperty()
+
+    def add_stuff_to_xform(self, xform):
+        super(CareplanForm, self).add_stuff_to_xform(xform)
+        case_changes = CAREPLAN_DEFAULT_CASE_PROPERTIES[self.case_type][self.mode].copy()
+        case_changes.update(self.custom_case_updates)
+        xform.add_care_plan(self.mode, self.case_type, CAREPLAN_NAME_PATH, case_changes)
+
+
+class CareplanModule(ModuleBase):
+    """
+    A set of forms and configuration for managing the Care Plan workflow.
+    """
+    target_module_id = StringProperty()
+
+    forms = SchemaListProperty(CareplanForm)
+    goal_list = SchemaProperty(DetailPair)
+    task_list = SchemaProperty(DetailPair)
+
+    @classmethod
+    def new_module(cls, name, lang, target_module_id, target_case_type):
+        lang = lang or 'en'
+        return CareplanModule(
+            name={lang: name or ugettext("Care Plan")},
+            target_module_id=target_module_id,
+            case_type=target_case_type,
+            forms=[cls._get_form(lang, name, case_type, mode)
+                for case_type in [CAREPLAN_GOAL, CAREPLAN_TASK]
+                for mode in ['create', 'update']],
+            goal_list=DetailPair(
+                short=cls._get_detail(lang, 'goal_short'),
+                long=cls._get_detail(lang, 'goal_long'),
+            ),
+            task_list=DetailPair(
+                short=cls._get_detail(lang, 'task_short'),
+                long=cls._get_detail(lang, 'task_long'),
+            )
+        )
+
+    @classmethod
+    def _get_form(cls, lang, name, case_type, mode):
+        action = 'Update' if mode == 'update' else 'New'
+        name = name or '%s Careplan %s' % (action, case_type.title())
+        return CareplanForm(name={lang: name}, case_type=case_type, mode=mode)
+
+    @classmethod
+    def _get_detail(cls, lang, detail_type):
+        columns = [
+            DetailColumn(
+                format='plain',
+                header={lang: ugettext("Goal")},
+                field='name',
+                model='case'),
+            DetailColumn(
+                format='date',
+                header={lang: ugettext("Followup")},
+                field='date_followup',
+                model='case')]
+
+        if detail_type.endswith('long'):
+            columns.append(DetailColumn(
+                format='plain',
+                header={lang: ugettext("Description")},
+                field='description',
+                model='case'))
+
+        if detail_type == 'tasks_long':
+            columns.append(DetailColumn(
+                format='plain',
+                header={lang: ugettext("Last update")},
+                field='latest_report',
+                model='case'))
+
+        return Detail(type=detail_type, columns=columns)
 
 
 class VersionedDoc(LazyAttachmentDoc):
@@ -1666,7 +1765,6 @@ class SavedAppBuild(ApplicationBase):
 
         return data
 
-
 class Application(ApplicationBase, TranslationMixin, HQMediaMixin):
     """
     An Application that can be created entirely through the online interface
@@ -1674,7 +1772,7 @@ class Application(ApplicationBase, TranslationMixin, HQMediaMixin):
     """
     user_registration = SchemaProperty(UserRegistrationForm)
     show_user_registration = BooleanProperty(default=False, required=True)
-    modules = SchemaListProperty(Module)
+    modules = SchemaListProperty(ModuleBase)
     name = StringProperty()
     # profile's schema is {'features': {}, 'properties': {}}
     # ended up not using a schema because properties is a reserved word
@@ -1698,6 +1796,7 @@ class Application(ApplicationBase, TranslationMixin, HQMediaMixin):
                     module['referral_label'][lang] = commcare_translations.load_translations(lang).get('cchq.referral', 'Referrals')
         if not data.get('build_langs'):
             data['build_langs'] = data['langs']
+
         return super(Application, cls).wrap(data)
 
     def save(self, *args, **kwargs):
@@ -2466,4 +2565,3 @@ Module.get_case_list_locale_id = lambda self: "case_lists.m{module.id}".format(m
 
 Module.get_referral_list_command_id = lambda self: "m{module.id}-referral-list".format(module=self)
 Module.get_referral_list_locale_id = lambda self: "referral_lists.m{module.id}".format(module=self)
-
