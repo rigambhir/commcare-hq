@@ -66,6 +66,29 @@
     </span>
 </script>
 
+<script type="text/html" id="case-config:case-transaction:case-references">
+    <em>{% trans "Reference the following case properties in the form" %}</em>
+    <div class="alert alert-block alert-info" data-bind="visible: !case_references.length">
+        {% trans "No case properties are referenced in this form." %}
+    </div>
+    <ul>
+        <!--ko foreach: case_references -->
+        <li> 
+            <span data-bind="text: $root.getQuestionLabel(question)"></span> 
+            (<span data-bind="text: question"></span>)
+                <!--ko foreach: references -->
+                <ul>
+                    references the 
+                    <span data-bind="if: case_type === 'parent_case'">parent </span>
+                    case property <code data-bind="text: property"/> in 
+                    its <span data-bind="text: $root.getPropertyName(type)"></span>.
+                </ul>
+                <!--/ko -->
+            </li>
+        <!--/ko -->
+    </ul>
+</script>
+
 <script type="text/html" id="case-config:case-transaction:case-preload">
     <em>{% trans "Load the following case properties into the form" %}</em>
     <div class="alert alert-block alert-info" data-bind="visible: !case_preload().length">
@@ -159,10 +182,17 @@
         name: 'case-config:condition',
         data: {condition: condition, case_transaction: $data}
     }, visible: allow.condition()"></div>
-    <div data-bind="if: allow.case_preload()" class="row-fluid">
-        <div class="well span6">
+<div data-bind="if: allow.case_preload()" class="row-fluid">
+        <!--ko if: !case_references -->
+        <div data-bind="if: !case_references" class="well span6">
             <div data-bind="template: 'case-config:case-transaction:case-preload'"></div>
         </div>
+        <!--/ko -->
+        <!--ko if: case_references -->
+        <div data-bind="if: case_references" class="well span6">
+            <div data-bind="template: 'case-config:case-transaction:case-references'"></div>
+        </div>
+        <!--/ko -->
         <div class="well span6">
             <div data-bind="template: 'case-config:case-transaction:case-properties'"></div>
         </div>

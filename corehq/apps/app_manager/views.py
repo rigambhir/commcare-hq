@@ -43,6 +43,7 @@ from dimagi.utils.couch.database import get_db
 from dimagi.utils.couch.resource_conflict import retry_resource
 from corehq.apps.app_manager.xform import XFormError, XFormValidationError, CaseError,\
     XForm
+from corehq.apps.app_manager.case_in_form import get_references, REFTYPE_NAMES
 from corehq.apps.builds.models import CommCareBuildConfig, BuildSpec
 from corehq.apps.users.decorators import require_permission
 from corehq.apps.users.models import Permissions, CommCareUser
@@ -167,7 +168,7 @@ def bail(req, domain, app_id, not_found=""):
 
 def _get_xform_source(request, app, form, filename="form.xml"):
     download = json.loads(request.GET.get('download', 'false'))
-    lang = request.COOKIES.get('lang', app.langs[0])
+    lang = get_lang(request, app)
     source = form.source
     if download:
         response = HttpResponse(source)
@@ -326,9 +327,9 @@ def get_form_view_context(request, form, langs, is_user_registration, messages=m
         xform = form.wrapped_xform()
     except XFormError as e:
         form_errors.append("Error in form: %s" % e)
-    except Exception as e:
-        logging.exception(e)
-        form_errors.append("Unexpected error in form: %s" % e)
+    #except Exception as e:
+        #logging.exception(e)
+        #form_errors.append("Unexpected error in form: %s" % e)
 
     if xform and xform.exists():
         if xform.already_has_meta():
@@ -467,7 +468,6 @@ def get_langs(request, app):
 
 
 def _clear_app_cache(request, domain):
-    from corehq import ApplicationsTab
     ApplicationBase.get_db().view('app_manager/applications_brief',
         startkey=[domain],
         limit=1,
@@ -482,6 +482,8 @@ def _clear_app_cache(request, domain):
         ])
         cache.delete(key)
 
+def get_lang(request, app):
+    return request.COOKIES.get('lang', app.langs[0])
 
 def get_apps_base_context(request, domain, app):
 
@@ -703,6 +705,8 @@ def view_generic(req, domain, app_id=None, module_id=None, form_id=None, is_user
 
     if form:
         template = "app_manager/form_view.html"
+        context['case_references'] = get_references(form)
+        context['case_reference_types'] = REFTYPE_NAMES
         context.update(get_form_view_context(req, form, context['langs'], is_user_registration))
     elif module:
         sort_elements = [prop.values() for prop in
@@ -766,27 +770,54 @@ def form_designer(req, domain, app_id, module_id=None, form_id=None,
     app = get_app(domain, app_id)
 
     if is_user_registration:
-        form = app.get_user_registration()
+        current_form = app.get_user_registration()
     else:
         try:
-            module = app.get_module(module_id)
+            current_module = app.get_module(module_id)
         except IndexError:
             return bail(req, domain, app_id, not_found="module")
         try:
-            form = module.get_form(form_id)
+            current_form = current_module.get_form(form_id)
         except IndexError:
             return bail(req, domain, app_id, not_found="form")
 
     context = get_apps_base_context(req, domain, app)
-    context.update(locals())
     context.update({
+        'app': app,
+        'module': current_module,
+        'form': current_form,
         'edit': True,
-        'nav_form': form if not is_user_registration else '',
+        'nav_form': current_form if not is_user_registration else '',
         'formdesigner': True,
         'multimedia_object_map': app.get_object_map()
     })
-    return render(req, 'app_manager/form_designer.html', context)
 
+    if app.case_management_in_vellum:
+        modules = []
+        for module in app.get_modules():
+            forms = []
+            for form in module.get_forms():
+                questions, _ = _questions_for_form(req, form, context['langs'])
+                forms.append({
+                    'name': form.name,
+                    'questions': questions,
+                    'actions': form.actions.to_json(),
+                })
+
+            modules.append({
+                'name': module.name,
+                'case_type': module.case_type,
+                'forms': forms
+            })
+
+        context['commcare_options'] = {
+            'current_module': int(module_id),
+            'current_form': int(form_id),
+            'modules': modules,
+            'case_reserved_words': load_case_reserved_words(),
+        }
+
+    return render(req, 'app_manager/form_designer.html', context)
 
 
 @no_conflict_require_POST
@@ -814,7 +845,7 @@ def new_app(req, domain):
 def new_module(req, domain, app_id):
     "Adds a module to an app"
     app = get_app(domain, app_id)
-    lang = req.COOKIES.get('lang', app.langs[0])
+    lang = get_lang(req, app)
     name = req.POST.get('name')
     module_type = req.POST.get('module_type', 'case')
     if module_type == 'case':
@@ -840,7 +871,7 @@ def new_care_plan_module(req, domain, app, name, lang):
 def new_form(req, domain, app_id, module_id):
     "Adds a form to an app (under a module)"
     app = get_app(domain, app_id)
-    lang = req.COOKIES.get('lang', app.langs[0])
+    lang = get_lang(req, app)
     name = req.POST.get('name')
     form = app.new_form(module_id, name, lang)
     app.save()
@@ -968,7 +999,7 @@ def edit_module_attr(req, domain, app_id, module_id, attr):
 
     app = get_app(domain, app_id)
     module = app.get_module(module_id)
-    lang = req.COOKIES.get('lang', app.langs[0])
+    lang = get_lang(req, app)
     resp = {'update': {}}
     if should_edit("case_type"):
         case_type = req.POST.get("case_type", None)
@@ -1066,22 +1097,36 @@ def _handle_media_edits(request, item, should_edit, resp):
 @login_or_digest
 @require_permission(Permissions.edit_apps, login_decorator=None)
 def patch_xform(request, domain, app_id, unique_form_id):
-    patch = request.POST['patch']
-    sha1_checksum = request.POST['sha1']
+    # todo: hash form actions too (do JSON.stringify() and json.dumps behave
+    # identically?)
+    def hash(form):
+        return hashlib.sha1(form.source.encode('utf-8')).hexdigest()
+
+    try:
+        POST = json.loads(request.raw_post_data)
+    except Exception:
+        POST = request.POST
+    patch = POST['patch']
+    sha1_checksum = POST['sha1']
 
     app = get_app(domain, app_id)
     form = app.get_form(unique_form_id)
 
     current_xml = form.source
-    if hashlib.sha1(current_xml.encode('utf-8')).hexdigest() != sha1_checksum:
+    if hash(form) != sha1_checksum:
         return json_response({'status': 'conflict', 'xform': current_xml})
 
     dmp = diff_match_patch()
     xform, _ = dmp.patch_apply(dmp.patch_fromText(patch), current_xml)
+
     save_xform(app, form, xform)
+    try:
+        form.actions = FormActions.wrap(POST['formActions'])
+    except KeyError:
+        pass # whoa
     response_json = {
         'status': 'ok',
-        'sha1': hashlib.sha1(form.source.encode('utf-8')).hexdigest()
+        'sha1': hash(form)
     }
     app.save(response_json)
     return json_response(response_json)
@@ -1097,7 +1142,7 @@ def edit_form_attr(req, domain, app_id, unique_form_id, attr):
 
     app = get_app(domain, app_id)
     form = app.get_form(unique_form_id)
-    lang = req.COOKIES.get('lang', app.langs[0])
+    lang = get_lang(req, app)
     ajax = json.loads(req.POST.get('ajax', 'true'))
 
     resp = {}
@@ -1425,6 +1470,7 @@ def edit_app_attr(request, domain, app_id, attr):
         'cloudcare_enabled',
         'application_version',
         'case_sharing',
+        'case_management_in_vellum',
         'translation_strategy'
         # RemoteApp only
         'profile_url',
@@ -1442,6 +1488,7 @@ def edit_app_attr(request, domain, app_id, attr):
         ('build_spec', BuildSpec.from_string),
         ('case_sharing', None),
         ('cloudcare_enabled', None),
+        ('case_management_in_vellum', None),
         ('manage_urls', None),
         ('name', None),
         ('platform', None),
