@@ -57,9 +57,7 @@ from corehq.apps.app_manager.models import Application
 from corehq.apps.app_manager.xform import XFormError
 
 
-
-__all__ = ['get_relevant_references', 'update_references', 'RefType',
-    'ModuleType']
+__all__ = ['get_references', 'RefType', 'ModuleType']
 
 # these are duplicated in formdesigner.commcare.js
 PROPERTY_NAME = r"([a-zA-Z][\w_-]*)"

@@ -1066,7 +1066,8 @@ def patch_xform(request, domain, app_id, unique_form_id):
         return hashlib.sha1(form.source.encode('utf-8')).hexdigest()
 
     try:
-        POST = json.loads(request.raw_post_data)
+        # raw_post_data is Django <= 1.3
+        POST = json.loads(getattr(request, 'body', None) or request.raw_post_data)
     except Exception:
         POST = request.POST
     patch = POST['patch']
