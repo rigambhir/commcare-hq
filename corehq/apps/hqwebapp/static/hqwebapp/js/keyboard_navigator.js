@@ -80,11 +80,12 @@ var KeyboardNavigator = function() {
             } else {
                 self.index = num;
                 self.$active_element = $(self.$elements.get(self.index % self.$elements.length));
+                last_mover = self.name;
             }
         };
 
         self.enter_nav = function() {
-            if (!self.elements_generated) {
+            if (self.regen_list_on_exit || !self.elements_generated) {
                 self.$elements = self.gen_elements();
                 self.elements_generated = true;
                 self.set_index(0);
@@ -121,7 +122,6 @@ var KeyboardNavigator = function() {
 
         self.gen_handle_nav = function(direction) {
             return function() {
-                last_mover = self.name;
                 if (!self.navigating) {
                     self.enter_nav();
                 }
