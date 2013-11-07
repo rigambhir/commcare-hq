@@ -568,9 +568,7 @@ class FormExportSchema(HQExportSchema):
     def formname(self):
         return xmlns_to_name(self.domain, self.xmlns, app_id=self.app_id)
 
-    @property
-    @memoized
-    def question_order(self):
+    def get_default_order(self):
         if not self.app:
             return []
         else:
@@ -584,10 +582,7 @@ class FormExportSchema(HQExportSchema):
             index = '.'.join(index_parts[1:])
             order.append(index)
 
-        return order
-
-    def get_default_order(self):
-        return {'#': self.question_order}
+        return {'#': order}
 
 
 class FormDeidExportSchema(FormExportSchema):
