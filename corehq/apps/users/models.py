@@ -37,7 +37,11 @@ from dimagi.utils.mixins import UnicodeMixIn
 from dimagi.utils.dates import force_to_datetime
 from dimagi.utils.django.database import get_unique_value
 
-from couchdbkit.exceptions import ResourceConflict, NoResultFound
+from casexml.apps.case.xml import V2
+import uuid
+from xml.etree import ElementTree
+from corehq.apps.hqcase.utils import submit_case_blocks
+from couchdbkit.exceptions import ResourceConflict, MultipleResultsFound, NoResultFound
 
 COUCH_USER_AUTOCREATED_STATUS = 'autocreated'
 
