@@ -1101,9 +1101,7 @@ def patch_xform(request, domain, app_id, unique_form_id):
 def edit_form_attr(req, domain, app_id, unique_form_id, attr):
     """
     Called to edit any (supported) form attribute, given by attr
-
     """
-
     app = get_app(domain, app_id)
     form = app.get_form(unique_form_id)
     lang = get_lang(req, app)
@@ -1111,13 +1109,8 @@ def edit_form_attr(req, domain, app_id, unique_form_id, attr):
 
     resp = {}
 
-    def should_edit(attribute):
-        if req.POST.has_key(attribute):
-            return True
-        elif req.FILES.has_key(attribute):
-            return True
-        else:
-            return False
+    def should_edit(attr):
+        return attr in req.POST or attr in req.FILES
 
     if should_edit("user_reg_data"):
         # should be user_registrations only

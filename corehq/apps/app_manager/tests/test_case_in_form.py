@@ -3,6 +3,7 @@ import os
 from django.test import TestCase
 
 from corehq.apps.domain.shortcuts import create_domain
+from corehq.apps.domain.models import Domain
 from corehq.apps.app_manager.models import Application, APP_V1, APP_V2
 from corehq.apps.app_manager.case_in_form import (get_references,
     RefType)
@@ -41,10 +42,58 @@ class CaseInFormTest(TestCase):
         parent_module = this_app.new_module("Parent Module", 'en')
         parent_module = this_app.get_module(0)
         parent_module.case_type = self.parent_type
-        this_app.new_form(
-                parent_module.id, name="Create Parent", lang='en', 
-                attachment=read('case_in_form.xml')
-                )
+        
+        parent_form = this_app.new_form(
+                parent_module.id, name="Create Parent", lang='en')
+        parent_form.actions.open_case = {
+            "condition": {
+                "answer": None,
+                "doc_type": "FormActionCondition",
+                "question": None,
+                "type": "always"
+                },
+            "doc_type": "OpenCaseAction",
+            "external_id": None,
+            "name_path": "/data/name"
+        }
+        parent_form.actions.update_case = {
+            "condition": {
+                "answer": None,
+                "doc_type": "FormActionCondition",
+                "question": None,
+                "type": "always"
+                },
+            "doc_type": "UpdateCaseAction",
+            "update": {
+                "parent_property_1": "/data/parent_property_1"
+            }
+        }
+
+        child_form = this_app.new_form(
+                parent_module.id, name="Create Child", lang='en',
+        child_form.actions.subcases = [
+            {
+                "case_name": "/data/child_name",
+                "case_properties": {
+                    "child_property_1": "/data/child_property_1"
+                },
+                "case_type": self.child_type,
+                "condition": {
+                    "answer": None,
+                    "doc_type": "FormActionCondition",
+                    "question": None,
+                    "type": "always"
+                },
+                "doc_type": "OpenSubCaseAction",
+                "reference_id": None,
+            }
+        ]
+
+        child_module = this_app.new_module("Child Module", 'en')
+        child_module = this_app.get_module(1)
+        child_module.case_type = self.child_type
+        update_child = this_app.
+                attachment=read('case_in_form.xml'))
         #this_app.new_form(
                 #parent_module.id, name="Update Parent and Create Child",
                 #lang='en', attachment="")
@@ -92,8 +141,24 @@ class CaseInFormTest(TestCase):
         #self.other_app1.delete()
         #self.other_app2.delete()
 
+    def test_get_case_properties(self):
+        self.assertEqual(get_case_properties(Domain.get_by_name(self.domain)), {
+            self.parent_type: {
+                "name": [
+                ],
+                "parent_property_1": [
+                ]
+            },
+            self.child_type: {
+                "name": [
+                ],
+                "child_property_1": [
+                ]
+            }
+        })
+
     def test_get_all_references_for_form(self):
-        form = self.this_app.get_module(0).get_form(0)
+        form = self.this_app.get_module(1).get_form(0)
 
         expected_references = sorted([
             {
