@@ -383,7 +383,6 @@ def get_app_view_context(request, app):
     options_labels = [option.get_label() for option in options]
     options_builds = [option.build.to_string() for option in options]
 
-
     (build_spec_setting,) = filter(
         lambda x: x['type'] == 'hq' and x['id'] == 'build_spec',
         [setting for section in context['settings_layout']
@@ -2085,8 +2084,8 @@ def upload_translations(request, domain, app_id):
         trans_dict = defaultdict(dict)
         for row in translations:
             for lang in app.langs:
-               if row.get(lang):
-                   trans_dict[lang].update({row["property"]: row[lang].encode('utf8')})
+                if row.get(lang):
+                    trans_dict[lang].update({row["property"]: row[lang]})
 
         app.translations = dict(trans_dict)
         app.save()
