@@ -28,7 +28,7 @@ from django.utils.http import urlencode
 from django.views.decorators.http import require_GET
 from django.conf import settings
 from couchdbkit.resource import ResourceNotFound
-from corehq.apps.app_manager.const import APP_V1
+from corehq.apps.app_manager.const import APP_V1, CAREPLAN_GOAL, CAREPLAN_TASK
 from corehq.apps.app_manager.success_message import SuccessMessage
 from corehq.apps.app_manager.util import is_valid_case_type, get_all_case_properties, add_odk_profile_after_build, ParentCasePropertyBuilder
 from corehq.apps.app_manager.util import save_xform, get_settings_values
@@ -57,7 +57,7 @@ from dimagi.utils.web import json_response, json_request
 from corehq.apps.reports import util as report_utils
 from corehq.apps.domain.decorators import login_and_domain_required, login_or_digest
 from corehq.apps.app_manager.models import Application, get_app, DetailColumn, Form, FormActions,\
-    AppError, load_case_reserved_words, ApplicationBase, DeleteFormRecord, DeleteModuleRecord, DeleteApplicationRecord, str_to_cls, validate_lang, SavedAppBuild, ParentSelect, Module, CareplanModule
+    AppError, load_case_reserved_words, ApplicationBase, DeleteFormRecord, DeleteModuleRecord, DeleteApplicationRecord, str_to_cls, validate_lang, SavedAppBuild, ParentSelect, Module, CareplanModule, CareplanForm
 from corehq.apps.app_manager.models import DETAIL_TYPES, import_app as import_app_util, SortElement
 from dimagi.utils.web import get_url_base
 from corehq.apps.app_manager.decorators import safe_download, no_conflict_require_POST
@@ -797,7 +797,17 @@ def new_module(req, domain, app_id):
 def _new_careplan_module(req, domain, app, name, lang):
     target_module_id = req.POST.get('target_module_id')
     target_case_type = app.get_module(target_module_id).case_type
-    module = app.add_module(CareplanModule.new_module(name, lang, target_module_id, target_case_type))
+    module = app.add_module(CareplanModule.new_module(app, name, lang, target_module_id, target_case_type))
+
+    forms = [CareplanForm.new_form(lang, name, case_type, mode)
+                for case_type in [CAREPLAN_GOAL, CAREPLAN_TASK]
+                for mode in ['create', 'update']]
+
+    for form, source in forms:
+        module.forms.append(form)
+        form = module.get_form(-1)
+        form.source = source
+
     app.save()
     response = back_to_main(req, domain, app_id=app.id, module_id=module.id)
     response.set_cookie('suppress_build_errors', 'yes')

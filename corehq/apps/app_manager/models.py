@@ -32,7 +32,7 @@ from couchdbkit.resource import ResourceNotFound
 
 from corehq.apps.app_manager.commcare_settings import check_condition
 from corehq.apps.app_manager.const import APP_V1, APP_V2, CAREPLAN_TASK, CAREPLAN_GOAL, \
-    CAREPLAN_DEFAULT_CASE_PROPERTIES, CAREPLAN_NAME_PATH
+    CAREPLAN_DEFAULT_CASE_PROPERTIES, CAREPLAN_NAME_PATH, CAREPLAN_CASE_NAMES
 from corehq.apps.app_manager.xpath import dot_interpolate
 from corehq.util.hash_compat import make_password
 from dimagi.utils.couch.lazy_attachment_doc import LazyAttachmentDoc
@@ -1051,10 +1051,22 @@ class CareplanForm(FormBase, IndexedSchema, NavMenuItemMediaMixin):
     mode = StringProperty(required=True, choices=['create', 'update'])
     custom_case_updates = DictProperty()
 
-    def add_stuff_to_xform(self, xform):
-        super(CareplanForm, self).add_stuff_to_xform(xform)
+    @classmethod
+    def new_form(cls, lang, name, case_type, mode):
+        action = 'Update' if mode == 'update' else 'New'
+        name = name or '%s Careplan %s' % (action, CAREPLAN_CASE_NAMES[case_type])
+        form = CareplanForm(name={lang: name}, case_type=case_type, mode=mode)
+        source = load_form_template('%s_%s.xml' % (case_type, mode))
+        return form, source
+
+    def _case_changes(self):
         case_changes = CAREPLAN_DEFAULT_CASE_PROPERTIES[self.case_type][self.mode].copy()
         case_changes.update(self.custom_case_updates)
+        return case_changes
+
+    def add_stuff_to_xform(self, xform):
+        super(CareplanForm, self).add_stuff_to_xform(xform)
+        case_changes = self._case_changes()
         xform.add_care_plan(self.mode, self.case_type, CAREPLAN_NAME_PATH, case_changes)
 
 
@@ -1069,15 +1081,12 @@ class CareplanModule(ModuleBase):
     task_list = SchemaProperty(DetailPair)
 
     @classmethod
-    def new_module(cls, name, lang, target_module_id, target_case_type):
+    def new_module(cls, app, name, lang, target_module_id, target_case_type):
         lang = lang or 'en'
         return CareplanModule(
             name={lang: name or ugettext("Care Plan")},
             target_module_id=target_module_id,
             case_type=target_case_type,
-            forms=[cls._get_form(lang, name, case_type, mode)
-                for case_type in [CAREPLAN_GOAL, CAREPLAN_TASK]
-                for mode in ['create', 'update']],
             goal_list=DetailPair(
                 short=cls._get_detail(lang, 'goal_short'),
                 long=cls._get_detail(lang, 'goal_long'),
@@ -1087,12 +1096,6 @@ class CareplanModule(ModuleBase):
                 long=cls._get_detail(lang, 'task_long'),
             )
         )
-
-    @classmethod
-    def _get_form(cls, lang, name, case_type, mode):
-        action = 'Update' if mode == 'update' else 'New'
-        name = name or '%s Careplan %s' % (action, case_type.title())
-        return CareplanForm(name={lang: name}, case_type=case_type, mode=mode)
 
     @classmethod
     def _get_detail(cls, lang, detail_type):
