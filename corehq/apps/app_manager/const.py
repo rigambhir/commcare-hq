@@ -21,13 +21,13 @@ CAREPLAN_DEFAULT_CASE_PROPERTIES = {
     },
     CAREPLAN_TASK: {
         'create': {
-            'description': '/data/description',
-            'date_followup': '/data/date_followup',
+            'description': '../../../description',
+            'date_followup': '../../../description',
         },
         'update': {
             'description': '/data/description',
             'date_followup': '/data/date_followup',
-            'latest_report': '/data/progress_update'
+            'latest_report': '/data/progress_group/progress_update'
         }
     },
 }

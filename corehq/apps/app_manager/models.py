@@ -1067,7 +1067,7 @@ class CareplanForm(FormBase, IndexedSchema, NavMenuItemMediaMixin):
     def add_stuff_to_xform(self, xform):
         super(CareplanForm, self).add_stuff_to_xform(xform)
         case_changes = self._case_changes()
-        xform.add_care_plan(self.mode, self.case_type, CAREPLAN_NAME_PATH, case_changes)
+        xform.add_care_plan(self, self.mode, self.case_type, CAREPLAN_NAME_PATH, case_changes)
 
     def get_app(self):
         return self._parent._parent

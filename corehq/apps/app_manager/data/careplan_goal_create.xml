@@ -1,4 +1,4 @@
-	<h:html xmlns:h="http://www.w3.org/1999/xhtml" xmlns:orx="http://openrosa.org/jr/xforms"
+<h:html xmlns:h="http://www.w3.org/1999/xhtml" xmlns:orx="http://openrosa.org/jr/xforms"
 	xmlns="http://www.w3.org/2002/xforms" xmlns:xsd="http://www.w3.org/2001/XMLSchema"
 	xmlns:jr="http://openrosa.org/javarosa">
 	<h:head>
@@ -11,44 +11,10 @@
 					<name />
 					<description />
 					<date_followup />
-					
-									
-                    <case xmlns="http://commcarehq.org/case/transaction/v2" case_id="" date_modified="" user_id="">
-                        <create>
-                            <case_type>careplan_goal</case_type>
-                            <owner_id/>
-                            <case_name/>
-                        </create>
-                        <update>
-                            <description/>
-                            <date_followup/>
-                        </update>
-                        <index>
-                            <parent case_type="careplan_target_case_type"/>
-                        </index>
-                    </case>
 
                     <group/>
-
-                    <parent_case_id/>
 				</data>
 			</instance>
-			<instance src="jr://instance/session" id="commcaresession" />
-			<instance id="casedb" src="jr://instance/casedb"/>
-			
-			<bind nodeset="/data/case/@date_modified" type="xsd:dateTime" calculate="/data/meta/timeEnd"/>
-			<bind nodeset="/data/case/@user_id" calculate="/data/meta/userID"/>
-			<bind nodeset="/data/case/@case_id" type="xsd:string" calculate="uuid()"/>
-			
-			<bind nodeset="/data/case/create/case_name" type="xsd:string" calculate="/data/name"/>
-			<setvalue event="xforms-revalidate" ref="/data/case/create/owner_id" value="instance('casedb')/casedb/case[@case_id = /data/parent_case_id]/@owner_id"/>
-			
-			<bind nodeset="/data/case/update/description" type="xsd:string" calculate="/data/description"/>
-			<bind nodeset="/data/case/update/date_followup" calculate="/data/date_followup"/>
-			
-			<bind nodeset="/data/case/index/parent" calculate="/data/parent_case_id"/>
-			
-			<bind nodeset="/data/parent_case_id" calculate="instance('commcaresession')/session/data/case_id"/>
 
 			<bind nodeset="/data/name" type="xsd:string" required="true()" />
 			<bind nodeset="/data/description" type="xsd:string" required="false()" />
