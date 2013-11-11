@@ -1069,6 +1069,24 @@ class CareplanForm(FormBase, IndexedSchema, NavMenuItemMediaMixin):
         case_changes = self._case_changes()
         xform.add_care_plan(self.mode, self.case_type, CAREPLAN_NAME_PATH, case_changes)
 
+    def get_app(self):
+        return self._parent._parent
+
+    def get_case_updates(self):
+        return self._case_changes().keys()
+
+    def get_parent_types_and_contributed_properties(self, module_case_type, case_type):
+        parent_types = set()
+        case_properties = set()
+        if case_type == self.case_type:
+            if case_type == CAREPLAN_GOAL:
+                parent_types.add(module_case_type)
+            elif case_type == CAREPLAN_TASK:
+                parent_types.add(CAREPLAN_GOAL)
+            case_properties.add(self._case_changes().keys())
+
+        return parent_types, case_properties
+
 
 class CareplanModule(ModuleBase):
     """
