@@ -139,11 +139,55 @@ class SessionDatum(IdNode, OrderedXmlObject):
     detail_confirm = StringField('@detail-confirm')
 
 
+class StackDatum(IdNode):
+    ROOT_NAME = 'datum'
+
+    value = StringField('@value')
+
+
+class StackCommand(XmlObject):
+    ROOT_NAME = 'command'
+
+    value = StringField('@value')
+
+
+class BaseFrame(XmlObject):
+    if_clause = StringField('@if')
+
+
+class CreateFrame(IdNode, BaseFrame):
+    ROOT_NAME = 'create'
+
+    datums = NodeListField('datum', StackDatum)
+    commands = NodeListField('command', StackCommand)
+
+
+class PushFrame(BaseFrame):
+    ROOT_NAME = 'push'
+
+    datum = NodeListField('datum', StackDatum)
+    command = NodeListField('command', StackCommand)
+
+
+class ClearFrame(BaseFrame):
+    ROOT_NAME = 'clear'
+
+    frame = StringField('@frame')
+
+
+class Stack(XmlObject):
+    ROOT_NAME = 'stack'
+
+    def add_frame(self, frame):
+        self.node.append(frame.node)
+
+
 class Assertion(XmlObject):
     ROOT_NAME = 'assert'
 
     test = StringField('@test')
     text = NodeListField('text', Text)
+
 
 class Entry(XmlObject):
     ROOT_NAME = 'entry'
@@ -153,6 +197,8 @@ class Entry(XmlObject):
     instances = NodeListField('instance', Instance)
 
     datums = NodeListField('session/datum', SessionDatum)
+
+    stack = NodeField('stack', Stack)
 
     assertions = NodeListField('assertions/assert', Assertion)
 
