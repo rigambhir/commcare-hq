@@ -559,7 +559,9 @@ class FormExportSchema(HQExportSchema):
 
     @property
     def filter(self):
-        f = SerializableFunction(form_matches_users, users=set(CouchUser.ids_by_domain(self.domain)))
+        user_ids = set(CouchUser.ids_by_domain(self.domain))
+        user_ids.update(CouchUser.ids_by_domain(self.domain, is_active=False))
+        f = SerializableFunction(form_matches_users, users=user_ids)
         if self.app_id is not None:
             f.add(reports.util.app_export_filter, app_id=self.app_id)
         if not self.include_errors:
@@ -616,6 +618,7 @@ class FormDeidExportSchema(FormExportSchema):
         pass
 
 class CaseExportSchema(HQExportSchema):
+    doc_type = 'SavedExportSchema'
 
     @property
     def domain(self):
