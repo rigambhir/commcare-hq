@@ -77,8 +77,8 @@ def load_case_reserved_words():
 
 
 @memoized
-def load_default_user_registration():
-    with open(os.path.join(os.path.dirname(__file__), 'data', 'register_user.xhtml')) as f:
+def load_form_template(filename):
+    with open(os.path.join(os.path.dirname(__file__), 'data', filename)) as f:
         return f.read()
 
 
@@ -624,24 +624,6 @@ class Form(FormBase, IndexedSchema, NavMenuItemMediaMixin):
 
         return errors
 
-    def set_requires(self, requires):
-        if requires == "none":
-            self.actions.update_referral = DocumentSchema()
-            self.actions.close_case = DocumentSchema()
-            self.actions.close_referral = DocumentSchema()
-            self.actions.case_preload = DocumentSchema()
-            self.actions.referral_preload = DocumentSchema()
-        elif requires == "case":
-            self.actions.open_case = DocumentSchema()
-            self.actions.close_referral= DocumentSchema()
-            self.actions.update_referral = DocumentSchema()
-            self.actions.referral_preload = DocumentSchema()
-        elif requires == "referral":
-            self.actions.open_case = DocumentSchema()
-            self.actions.open_referral = DocumentSchema()
-
-        self.requires = requires
-
     def requires_case(self):
         # all referrals also require cases
         return self.requires in ("case", "referral")
@@ -680,6 +662,25 @@ class Form(FormBase, IndexedSchema, NavMenuItemMediaMixin):
         ))
 
         return errors
+
+    def get_case_updates(self):
+        return self.actions.update_case.update.keys()
+
+    @memoized
+    def get_parent_types_and_contributed_properties(self, module_case_type, case_type):
+        parent_types = set()
+        case_properties = set()
+        for subcase in self.actions.subcases:
+            if subcase.case_type == case_type:
+                case_properties.update(
+                    subcase.case_properties.keys()
+                )
+                if case_type != module_case_type and (
+                        self.actions.open_case.is_active() or
+                        self.actions.update_case.is_active() or
+                        self.actions.close_case.is_active()):
+                    parent_types.add(module_case_type)
+        return parent_types, case_properties
 
 
 class UserRegistrationForm(FormBase):
@@ -891,16 +892,22 @@ class Module(IndexedSchema, NavMenuItemMediaMixin):
     @classmethod
     def wrap(cls, data):
         if 'details' in data:
-            case_short, case_long, ref_short, ref_long = data['details']
-            del data['details']
-            data['case_details'] = {
-                'short': case_short,
-                'long': case_long,
-            }
-            data['ref_details'] = {
-                'short': ref_short,
-                'long': ref_long,
-            }
+            try:
+                case_short, case_long, ref_short, ref_long = data['details']
+            except ValueError:
+                # "need more than 0 values to unpack"
+                pass
+            else:
+                data['case_details'] = {
+                    'short': case_short,
+                    'long': case_long,
+                }
+                data['ref_details'] = {
+                    'short': ref_short,
+                    'long': ref_long,
+                }
+            finally:
+                del data['details']
         return super(Module, cls).wrap(data)
 
     @classmethod
@@ -1352,7 +1359,7 @@ class ApplicationBase(VersionedDoc, SnapshotMixin):
     @property
     def commcare_minor_release(self):
         """This is mostly just for views"""
-        return self.build_spec.minor_release()
+        return '%d.%d' % self.build_spec.minor_release()
 
     def get_build_label(self):
         for item in CommCareBuildConfig.fetch().menu:
@@ -1864,8 +1871,8 @@ class Application(ApplicationBase, TranslationMixin, HQMediaMixin):
     @property
     def custom_suite(self):
         try:
-            return self.fetch_attachment('custom_suite.xml')
-        except Exception:
+            return self.lazy_fetch_attachment('custom_suite.xml')
+        except ResourceNotFound:
             return ""
 
     def set_custom_suite(self, value):
@@ -1922,7 +1929,7 @@ class Application(ApplicationBase, TranslationMixin, HQMediaMixin):
         form = self.user_registration
         form._app = self
         if not form.source:
-            form.source = load_default_user_registration()
+            form.source = load_form_template('register_user.xhtml')
         return form
 
     def get_forms(self, bare=True):
