@@ -1096,7 +1096,7 @@ class CareplanModule(ModuleBase):
     """
     A set of forms and configuration for managing the Care Plan workflow.
     """
-    target_module_id = StringProperty()
+    parent_select = SchemaProperty(ParentSelect)
 
     forms = SchemaListProperty(CareplanForm)
     goal_details = SchemaProperty(DetailPair)
@@ -1107,7 +1107,11 @@ class CareplanModule(ModuleBase):
         lang = lang or 'en'
         return CareplanModule(
             name={lang: name or ugettext("Care Plan")},
-            target_module_id=target_module_id,
+            parent_select=ParentSelect(
+                active=True,
+                relationship='parent',
+                module_id=target_module_id
+            ),
             case_type=target_case_type,
             goal_details=DetailPair(
                 short=cls._get_detail(lang, 'goal_short'),

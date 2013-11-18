@@ -795,9 +795,15 @@ def new_module(req, domain, app_id):
 
 
 def _new_careplan_module(req, domain, app, name, lang):
-    target_module_id = req.POST.get('target_module_id')
-    target_case_type = app.get_module(target_module_id).case_type
-    module = app.add_module(CareplanModule.new_module(app, name, lang, target_module_id, target_case_type))
+    target_module_index = req.POST.get('target_module_id')
+    target_module = app.get_module(target_module_index)
+    module = app.add_module(CareplanModule.new_module(
+        app,
+        name,
+        lang,
+        target_module.unique_id,
+        target_module.case_type)
+    )
 
     forms = [CareplanForm.new_form(lang, name, case_type, mode)
                 for case_type in [CAREPLAN_GOAL, CAREPLAN_TASK]
