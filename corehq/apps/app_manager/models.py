@@ -919,6 +919,10 @@ class ModuleBase(IndexedSchema, NavMenuItemMediaMixin):
         self__forms = self.forms
         return self__forms[i].with_id(i%len(self.forms), self)
 
+    def requires_case_details(self):
+        return False
+
+
 class Module(ModuleBase):
     """
     A group of related forms, and configuration that applies to them all.
@@ -1144,6 +1148,9 @@ class CareplanModule(ModuleBase):
                 model='case'))
 
         return Detail(type=detail_type, columns=columns)
+
+    def requires_case_details(self):
+        return True
 
 
 class VersionedDoc(LazyAttachmentDoc):
