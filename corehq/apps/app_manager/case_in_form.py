@@ -52,15 +52,6 @@ import re
 from collections import defaultdict
 from xml.etree import ElementTree
 
-<<<<<<< HEAD
-from django.utils.translation import ugettext_noop
-
-from corehq.apps.app_manager.models import Application
-from corehq.apps.app_manager.xform import XFormError
-
-
-__all__ = ['get_references', 'RefType', 'ModuleType']
-=======
 from django.utils.translation import ugettext_noop, ugettext as _
 
 #from corehq.apps.app_manager.models import Application
@@ -72,7 +63,6 @@ from corehq.apps.app_manager.util import (get_all_case_properties,
 __all__ = ['get_references', 'get_validated_references', 'get_reftype_names'
     #'RefType', 'ModuleType'
 ]
->>>>>>> cm-vellum
 
 # these are duplicated in formdesigner.commcare.js
 PROPERTY_NAME = r"([a-zA-Z][\w_-]*)"
@@ -117,11 +107,6 @@ REFTYPE_NAMES = {
     RefType.HINT_ITEXT: ugettext_noop('Hint Message')
 }
 
-<<<<<<< HEAD
-class ModuleType(object):
-    PARENT = 'parent_module'   # may not necessarily actually have any child forms
-    CHILD = 'child_module'
-=======
 def get_reftype_names():
     """Get translated names for attributes that can reference a case
     property"""
@@ -130,7 +115,6 @@ def get_reftype_names():
 #class ModuleType(object):
     #PARENT = 'parent_module'   # may not necessarily actually have any child forms
     #CHILD = 'child_module'
->>>>>>> cm-vellum
 
 
 #def get_relevant_references(project, form=None, validate=True):
@@ -157,58 +141,6 @@ def get_reftype_names():
     #return app_structure
 
 
-<<<<<<< HEAD
-def get_case_properties(project):
-    apps = Application.by_domain(project.name)
-
-    # dict per case type, of property name -> list of source questions
-    properties = defaultdict(lambda: defaultdict(list))
-
-    # first we need to figure out the parent case type.
-    # One case type could be created from multiple parent case types but for
-    # now we aren't going to do anything with that information.
-    #parent_case_types = []
-    #for app in apps:
-        #for module in app.get_modules():
-            #for form in module.get_forms():
-                #if any(s.case_type == own_case_type for s in
-                        #form.actions.subcases):
-                    #parent_case_types.append(module.case_type)
-
-    def process_form(form):
-        module = form.get_module()
-        form_case_type = module.case_type
-        questions_by_path = defaultdict(lambda: None, (
-            (q['value'], dict(form_id=form.id, module_id=module.id, **q))
-            for q in form.questions))
-        open_case = form.actions.open_case
-        update_case = form.actions.update_case
-
-        if open_case.condition.type != 'never' and open_case.name_path:
-            properties[form_case_type]['name'].append(
-                    questions_by_path[open_case.name_path])
-
-        if update_case.condition.type != 'never':
-            for property, path in update_case.update.items():
-                properties[form_case_type][property].append(
-                        questions_by_path[path])
-
-        for subcase in form.actions.subcases:
-            properties[subcase.case_type]['name'].append(
-                    questions_by_path[subcase.case_name])
-            for property, path in subcase.case_properties.items():
-                properties[subcase.case_type][property].append(
-                        questions_by_path[path])
-
-    # user registration forms?
-    for app in apps:
-        for module in app.get_modules():
-            for form in module.get_forms():
-                process_form(form)
-    return properties
-
-def get_references(form, validate=False):
-=======
 #def get_case_properties(project):
     #apps = Application.by_domain(project.name)
 
@@ -259,21 +191,13 @@ def get_references(form, validate=False):
     #return properties
 
 def get_references(form):
->>>>>>> cm-vellum
     """
     Get all case property references in `xform`
     [
         {
             'question': '/data/question1',
-<<<<<<< HEAD
-            'case_type': RefType.OWN_CASE|PARENT_CASE, (OR a raw case type, for
-            subcase updates!)
-            'property': 'foo',
-            #'valid': True,
-=======
             'case_type': RefType.OWN_CASE|RefType.PARENT_CASE,
             'property': 'foo',
->>>>>>> cm-vellum
             'type': RefType.FOO,
         }
     ]
@@ -281,31 +205,6 @@ def get_references(form):
     multiple references in the same condition, or multiple references in the
     same itext message in different languages).
     """
-<<<<<<< HEAD
-    all_references = []
-    def collect_parsed_references(property_value):
-        value = property_value['value']
-        for r in parse_references(value):
-            all_references.append(dict(r, **property_value))
-        return value
-    for_each_property_value(form.wrapped_xform(), collect_parsed_references)
-
-    # for now we don't care about multiple references to the same property in
-    # the same question and attribute
-    filtered_references = {}
-    for r in all_references:
-        # don't care about attribute value for now
-        r.pop('value')
-        filtered_references.setdefault(r['question'], {})
-        filtered_references[r['question']][tuple(sorted(r.items()))] = r
-    filtered_references = [{
-        'question': q,
-        'references': r.values()
-    } for q, r in filtered_references.items()]
-
-    return filtered_references # + get_save_to_case_references(form)
-
-=======
     all_references = defaultdict(list)
     def collect_parsed_references(property_value):
         value = property_value['value']
@@ -336,7 +235,6 @@ def get_validated_references(form):
             r['valid'] = property in case_properties
 
     return references
->>>>>>> cm-vellum
 
 #def get_save_to_case_references(form):
     #references = []
