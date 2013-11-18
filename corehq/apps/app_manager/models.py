@@ -1095,8 +1095,8 @@ class CareplanModule(ModuleBase):
     target_module_id = StringProperty()
 
     forms = SchemaListProperty(CareplanForm)
-    goal_list = SchemaProperty(DetailPair)
-    task_list = SchemaProperty(DetailPair)
+    goal_details = SchemaProperty(DetailPair)
+    task_details = SchemaProperty(DetailPair)
 
     @classmethod
     def new_module(cls, app, name, lang, target_module_id, target_case_type):
@@ -1105,11 +1105,11 @@ class CareplanModule(ModuleBase):
             name={lang: name or ugettext("Care Plan")},
             target_module_id=target_module_id,
             case_type=target_case_type,
-            goal_list=DetailPair(
+            goal_details=DetailPair(
                 short=cls._get_detail(lang, 'goal_short'),
                 long=cls._get_detail(lang, 'goal_long'),
             ),
-            task_list=DetailPair(
+            task_details=DetailPair(
                 short=cls._get_detail(lang, 'task_short'),
                 long=cls._get_detail(lang, 'task_long'),
             )
