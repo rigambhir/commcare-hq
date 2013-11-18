@@ -339,6 +339,7 @@ var DetailScreenConfig = (function () {
             var i, column, model, property, header,
                 that = this, columns;
             eventize(this);
+            this.type = spec.type;
             this.saveUrl = options.saveUrl;
             this.$home = $home;
             this.config = config;
@@ -516,6 +517,7 @@ var DetailScreenConfig = (function () {
                     url: this.saveUrl,
                     type: "POST",
                     data: {
+                        type: this.type,
                         screens: JSON.stringify(this.serialize()),
                         parent_select: JSON.stringify({
                             module_id: parentSelect.moduleId(),
@@ -740,7 +742,9 @@ var DetailScreenConfig = (function () {
             var $sortRowsHome = $('#' + type + '-detail-screen-sort');
             var $parentSelectHome = $('#' + type + '-detail-screen-parent');
             ko.applyBindings(ds.sortRows, $sortRowsHome.get(0));
-            ko.applyBindings(ds.parentSelect, $parentSelectHome.get(0));
+            if ($parentSelectHome.get(0)){
+                ko.applyBindings(ds.parentSelect, $parentSelectHome.get(0));
+            }
             $parentSelectHome.on('change', '*', function () {
                 ds.screens[0].fire('change');
             });

@@ -1076,8 +1076,11 @@ class CareplanForm(FormBase, IndexedSchema, NavMenuItemMediaMixin):
     def get_app(self):
         return self._parent._parent
 
-    def get_case_updates(self):
-        return self._case_changes().keys()
+    def get_case_updates(self, case_type):
+        if case_type == self.case_type:
+            return self._case_changes().keys()
+        else:
+            return []
 
     def get_parent_types_and_contributed_properties(self, module_case_type, case_type):
         parent_types = set()
@@ -1087,7 +1090,7 @@ class CareplanForm(FormBase, IndexedSchema, NavMenuItemMediaMixin):
                 parent_types.add(module_case_type)
             elif case_type == CAREPLAN_TASK:
                 parent_types.add(CAREPLAN_GOAL)
-            case_properties.add(self._case_changes().keys())
+            case_properties.update(self._case_changes().keys())
 
         return parent_types, case_properties
 

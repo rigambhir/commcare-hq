@@ -562,40 +562,60 @@ def release_build(request, domain, app_id, saved_app_id):
         return HttpResponseRedirect(reverse('release_manager', args=[domain, app_id]))
 
 
-def get_module_view_context(app, module):
-    case_type = module.case_type
+def get_module_view_context_and_template(app, module):
     builder = ParentCasePropertyBuilder(
         app,
         defaults=('name', 'date-opened', 'status')
     )
 
-    def get_parent_modules_and_save():
-        """
-        This closure is so we don't override the `module` variable
+    def get_parent_modules_and_save(case_type):
+            """
+            This closure is so we don't override the `module` variable
 
-        """
-        parent_types = builder.get_parent_types(case_type)
-        modules = app.modules
-        # make sure all modules have unique ids
-        if any(not module.unique_id for module in modules):
-            for module in modules:
-                module.get_or_create_unique_id()
-            app.save()
-        parent_module_ids = [module.unique_id for module in modules
-                             if module.case_type in parent_types]
-        return [{
-                    'unique_id': module.unique_id,
-                    'name': module.name,
-                    'is_parent': module.unique_id in parent_module_ids,
-                } for module in app.modules if module.case_type != case_type]
+            """
+            parent_types = builder.get_parent_types(case_type)
+            modules = app.modules
+            # make sure all modules have unique ids
+            if any(not module.unique_id for module in modules):
+                for module in modules:
+                    module.get_or_create_unique_id()
+                app.save()
+            parent_module_ids = [module.unique_id for module in modules
+                                 if module.case_type in parent_types]
 
-    sort_elements = [prop.values() for prop in
-                     module.case_details.short.sort_elements]
-    return {
-        'parent_modules': get_parent_modules_and_save(),
-        'case_properties': sorted(builder.get_properties(case_type)),
-        "sortElements": json.dumps(sort_elements)
-    }
+            return [{
+                        'unique_id': mod.unique_id,
+                        'name': mod.name,
+                        'is_parent': mod.unique_id in parent_module_ids,
+                    } for mod in app.modules if mod.case_type != case_type and mod.unique_id != module.unique_id]
+
+    def get_sort_elements(details):
+        return [prop.values() for prop in
+                         details.sort_elements]
+
+    if isinstance(module, CareplanModule):
+        return "app_manager/module_view_careplan.html", {
+            'parent_modules': get_parent_modules_and_save(CAREPLAN_GOAL),
+            'goal_case_properties': sorted(builder.get_properties(CAREPLAN_GOAL)),
+            'task_case_properties': sorted(builder.get_properties(CAREPLAN_TASK)),
+            "goal_sortElements": json.dumps(get_sort_elements(module.goal_details.short)),
+            "task_sortElements": json.dumps(get_sort_elements(module.task_details.short)),
+        }
+    else:
+        builder = ParentCasePropertyBuilder(
+            app,
+            defaults=('name', 'date-opened', 'status')
+        )
+
+        sort_elements = [prop.values() for prop in
+                         module.case_details.short.sort_elements]
+
+        case_type = module.case_type
+        return "app_manager/module_view.html", {
+            'parent_modules': get_parent_modules_and_save(case_type),
+            'case_properties': sorted(builder.get_properties(case_type)),
+            "sortElements": json.dumps(sort_elements)
+        }
 
 
 @retry_resource(3)
@@ -669,8 +689,8 @@ def view_generic(req, domain, app_id=None, module_id=None, form_id=None, is_user
         })
         context.update(get_form_view_context(req, form, context['langs'], is_user_registration))
     elif module:
-        context.update(get_module_view_context(app, module))
-        template = "app_manager/module_view.html"
+        template, context_update = get_module_view_context_and_template(app, module)
+        context.update(context_update)
     else:
         template = "app_manager/app_view.html"
         if app:
@@ -935,6 +955,7 @@ def edit_module_attr(req, domain, app_id, module_id, attr):
         'media_image': None, 'media_audio': None,
         "case_list": ('case_list-show', 'case_list-label'),
         "task_list": ('task_list-show', 'task_list-label'),
+        "parent_module": None,
     }
 
     if attr not in attributes:
@@ -965,6 +986,9 @@ def edit_module_attr(req, domain, app_id, module_id, attr):
             return HttpResponseBadRequest("case type is improperly formatted")
     if should_edit("put_in_root"):
         module["put_in_root"] = json.loads(req.POST.get("put_in_root"))
+    if should_edit("parent_module"):
+        parent_module = req.POST.get("parent_module")
+        module.parent_select.module_id = parent_module
     for attribute in ("name", "case_label", "referral_label"):
         if should_edit(attribute):
             name = req.POST.get(attribute, None)
@@ -990,6 +1014,7 @@ def edit_module_detail_screens(req, domain, app_id, module_id):
 
     """
     params = json_request(req.POST)
+    detail_type = params.get('type')
     screens = params.get('screens')
     parent_select = params.get('parent_select')
     sort_elements = screens['sort_elements']
@@ -999,20 +1024,27 @@ def edit_module_detail_screens(req, domain, app_id, module_id):
 
     app = get_app(domain, app_id)
     module = app.get_module(module_id)
-    detail = module.case_details.short
 
-    detail.sort_elements = []
+    if detail_type == 'case':
+        detail = module.case_details
+    elif detail_type == CAREPLAN_GOAL:
+        detail = module.goal_details
+    elif detail_type == CAREPLAN_TASK:
+        detail = module.task_details
+    else:
+        return HttpResponseBadRequest("Unknown detail type '%s'" % detail_type)
 
-    module.case_details.short.columns = map(DetailColumn.wrap, screens['short'])
-    module.case_details.long.columns = map(DetailColumn.wrap, screens['long'])
+    detail.short.sort_elements = []
+
+    detail.short.columns = map(DetailColumn.wrap, screens['short'])
+    detail.long.columns = map(DetailColumn.wrap, screens['long'])
 
     for sort_element in sort_elements:
         item = SortElement()
         item.field = sort_element['field']
         item.type = sort_element['type']
         item.direction = sort_element['direction']
-        detail.sort_elements.append(item)
-
+        detail.short.sort_elements.append(item)
 
     module.parent_select = ParentSelect.wrap(parent_select)
     resp = {}
