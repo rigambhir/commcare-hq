@@ -120,7 +120,6 @@ class WrappedNode(object):
             }[name]
             def _fn(xpath, *args, **kwargs):
                 if self.xml is not None:
-                    print self.namespaces
                     return wrap(getattr(self.xml, name)(xpath.format(**self.namespaces), *args, **kwargs))
                 else:
                     return none()

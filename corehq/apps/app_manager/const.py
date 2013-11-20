@@ -15,7 +15,7 @@ CAREPLAN_DEFAULT_CASE_PROPERTIES = {
             'date_followup': '/data/date_followup',
         },
         'update': {
-            'description': '/data/description',
+            'description': '/data/description_group/description',
             'date_followup': '/data/date_followup',
         },
     },

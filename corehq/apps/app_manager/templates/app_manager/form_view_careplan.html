@@ -26,22 +26,6 @@
             var edit = {% if edit %}true{% else %}false{% endif %};
             var form_empty = {% if form.source and xform_questions %}false{% else %}true{% endif %};
 
-            /* form_requires needs to be a knockout observable so that
-             its value can be read by another UI (form filtering) */
-            var form_requires = ko.observable();
-            var caseConfig = new CaseConfig.CaseConfig({
-                home: $('#casexml_home'),
-                actions: {{ form.actions|JSON }},
-                questions: {{ xform_questions|JSON }},
-                edit: edit,
-                save_url: "{% url "corehq.apps.app_manager.views.edit_form_actions" app.domain app.id module.id nav_form.id %}",
-                requires: form_requires,
-                reserved_words: {{ case_reserved_words_json|JSON }},
-                moduleCaseTypes: {{ module_case_types|JSON }},
-                caseType: {{ form.get_case_type|JSON }},
-                propertiesMap: {{ case_properties|JSON }}
-            });
-            caseConfig.init();
         });
     </script>
     <script>
@@ -63,80 +47,14 @@
 {% block head %}
     {{ block.super }}
     <link href="{% static 'hqwebapp/js/lib/select2/select2.css' %}" rel="stylesheet"/>
-    <link rel="stylesheet" href="{{ STATIC_URL }}syntaxhighlighter/styles/shCoreDefault.css"/>
-    <script src="{{ STATIC_URL }}syntaxhighlighter/scripts/shCore.js"></script>
-    <script src="{{ STATIC_URL }}syntaxhighlighter/scripts/shBrushXml.js"></script>
     <style>
         .casexml ul {
             margin-left: 15px;
         }
-        .no-edit-select {
-            font-weight: bold;
-            color: #444;
-        }
         input[type="radio"]{
             margin: 3px 5px 5px 0px;
         }
-        #xform-links ul {
-            display: block;
-        }
-        #xform-links li {
-            display: inline-block;
-            border-left: 1px solid #DDD;
-            padding: 0 5px;
-        }
-        #xform-links li:first-child {
-            border-left: none;
-            padding-left: 0;
-        }
-        #xform-links a {
-            display: inline-block;
-            border: 1px solid transparent;
-            padding: 5px 10px;
-            vertical-align: middle;
-
-            border-radius: 15px;
-            -moz-border-radius: 15px;
-        }
-        #xform-links a:hover {
-            border: 1px solid #BBB;
-            background: #EEE;
-            text-decoration: none;
-        }
-        #xform-links a:active {
-            border: 1px solid #BBB;
-            background: #DDD;
-            text-decoration: none;
-        }
-        #xform-links a.disabled {
-            pointer-events: none;
-            cursor: default;
-            color: #888;
-        }
-        .bigdrop {
-            width: 600px !important;
-        }
     </style>
-    {% if app.application_version == '2.0' %}
-    <style>
-        #open-referral-action,
-        #update-referral-action,
-        #close-referral-action,
-        #referral-preload-action {
-            display: none;
-        }
-        .indent {
-            margin-left: 15px;
-        }
-        .ko-no-edit-select {
-            font-weight: bold;
-            color: #444;
-        }
-        .code.ko-no-edit {
-            font-weight: normal;
-        }
-    </style>
-    {% endif %}
 {% endblock %}
 {% block form-view %}
 
@@ -212,7 +130,7 @@
                         ></span>
                     </header>
                     <div class="casexml" id="casexml_home">
-                        {% include 'app_manager/partials/case_config.html' %}
+                        
                     </div>
             {% else %}
                 <p class="alert alert-warning">

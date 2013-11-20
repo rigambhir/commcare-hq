@@ -351,13 +351,13 @@ def get_form_view_context_and_template(request, form, langs, is_user_registratio
         else:
             messages.error(request, err)
 
-    if isinstance(form, Form):
+    if isinstance(form, CareplanForm):
         module_case_types = [
             {'module_name': trans(module.name, langs),
              'case_type': module.case_type}
             for module in form.get_app().modules if module.case_type
         ] if not is_user_registration else None
-        return "app_manager/form_view.html", {
+        return "app_manager/form_view_careplan.html", {
             'nav_form': form if not is_user_registration else '',
             'xform_languages': languages,
             "xform_questions": xform_questions,
@@ -368,13 +368,13 @@ def get_form_view_context_and_template(request, form, langs, is_user_registratio
             'xform_validation_errored': xform_validation_errored,
             'show_custom_ref': toggle_enabled(toggles.APP_BUILDER_CUSTOM_PARENT_REF, request.user.username),
         }
-    elif isinstance(form, CareplanForm):
+    else:
         module_case_types = [
             {'module_name': trans(module.name, langs),
              'case_type': module.case_type}
             for module in form.get_app().modules if module.case_type
         ] if not is_user_registration else None
-        return "app_manager/form_view_careplan.html", {
+        return "app_manager/form_view.html", {
             'nav_form': form if not is_user_registration else '',
             'xform_languages': languages,
             "xform_questions": xform_questions,
