@@ -281,7 +281,7 @@ def default(req, domain):
     return view_app(req, domain)
 
 
-def get_form_view_context(request, form, langs, is_user_registration, messages=messages):
+def get_form_view_context_and_template(request, form, langs, is_user_registration, messages=messages):
     xform_questions = []
     xform = None
     form_errors = []
@@ -350,22 +350,41 @@ def get_form_view_context(request, form, langs, is_user_registration, messages=m
             form_errors[i] = err[0]
         else:
             messages.error(request, err)
-    module_case_types = [
-        {'module_name': trans(module.name, langs),
-         'case_type': module.case_type}
-        for module in form.get_app().modules if module.case_type
-    ] if not is_user_registration else None
-    return {
-        'nav_form': form if not is_user_registration else '',
-        'xform_languages': languages,
-        "xform_questions": xform_questions,
-        'case_reserved_words_json': load_case_reserved_words(),
-        'is_user_registration': is_user_registration,
-        'module_case_types': module_case_types,
-        'form_errors': form_errors,
-        'xform_validation_errored': xform_validation_errored,
-        'show_custom_ref': toggle_enabled(toggles.APP_BUILDER_CUSTOM_PARENT_REF, request.user.username),
-    }
+
+    if isinstance(form, Form):
+        module_case_types = [
+            {'module_name': trans(module.name, langs),
+             'case_type': module.case_type}
+            for module in form.get_app().modules if module.case_type
+        ] if not is_user_registration else None
+        return "app_manager/form_view.html", {
+            'nav_form': form if not is_user_registration else '',
+            'xform_languages': languages,
+            "xform_questions": xform_questions,
+            'case_reserved_words_json': load_case_reserved_words(),
+            'is_user_registration': is_user_registration,
+            'module_case_types': module_case_types,
+            'form_errors': form_errors,
+            'xform_validation_errored': xform_validation_errored,
+            'show_custom_ref': toggle_enabled(toggles.APP_BUILDER_CUSTOM_PARENT_REF, request.user.username),
+        }
+    elif isinstance(form, CareplanForm):
+        module_case_types = [
+            {'module_name': trans(module.name, langs),
+             'case_type': module.case_type}
+            for module in form.get_app().modules if module.case_type
+        ] if not is_user_registration else None
+        return "app_manager/form_view_careplan.html", {
+            'nav_form': form if not is_user_registration else '',
+            'xform_languages': languages,
+            "xform_questions": xform_questions,
+            'case_reserved_words_json': load_case_reserved_words(),
+            'is_user_registration': is_user_registration,
+            'module_case_types': module_case_types,
+            'form_errors': form_errors,
+            'xform_validation_errored': xform_validation_errored,
+            'show_custom_ref': toggle_enabled(toggles.APP_BUILDER_CUSTOM_PARENT_REF, request.user.username),
+        }
 
 
 def get_app_view_context(request, app):
@@ -683,11 +702,11 @@ def view_generic(req, domain, app_id=None, module_id=None, form_id=None, is_user
         context.update({"translations": app.translations.get(context['lang'], {})})
 
     if form:
-        template = "app_manager/form_view.html"
+        template, form_context = get_form_view_context_and_template(req, form, context['langs'], is_user_registration)
         context.update({
             'case_properties': get_all_case_properties(app),
         })
-        context.update(get_form_view_context(req, form, context['langs'], is_user_registration))
+        context.update(form_context)
     elif module:
         template, context_update = get_module_view_context_and_template(app, module)
         context.update(context_update)
@@ -1980,7 +1999,7 @@ def _questions_for_form(request, form, langs):
 
     m = FakeMessages()
 
-    context = get_form_view_context(request, form, langs, None, messages=m)
+    context = get_form_view_context_and_template(request, form, langs, None, messages=m)
     xform_questions = context['xform_questions']
     return xform_questions, m.messages
 

@@ -1,0 +1,227 @@
+{% extends "app_manager/managed_app.html" %}
+{% load url from future %}
+{% load xforms_extras %}
+{% load hq_shared_tags %}
+{% load i18n %}
+
+{% block js %}{{ block.super }}
+    <script src="{% static 'hqwebapp/js/lib/select2/select2.js' %}"></script>
+    <script src="{% static 'hqwebapp/js/lib/knockout.mapping.js' %}"></script>
+    <script src="{% static 'hqwebapp/js/knockout-bindings.js' %}"></script>
+
+    {% if app.application_version == '2.0' %}
+        <script src="{% static 'app_manager/js/case-config-ui-2.js' %}"></script>
+    {% else %}
+        <script src="{% static 'app_manager/js/ejs.min.js' %}"></script>
+        <script src="{% static 'app_manager/js/case-config-ui-1.js' %}"></script>
+    {% endif %}
+    <script src="{% static 'cloudcare/js/util.js' %}"></script>
+{% endblock %}
+
+{% block js-inline %}{{ block.super }}
+    {% include "hqwebapp/ko/value-or-none-ui.html" %}
+    {% include "app_manager/partials/nav_menu_media_js.html" with item=form image_default="jr://file/commcare/image/form_name.png" audio_default="jr://file/commcare/audio/form_name.mp3" %}
+    <script>
+        $(function(){
+            var edit = {% if edit %}true{% else %}false{% endif %};
+            var form_empty = {% if form.source and xform_questions %}false{% else %}true{% endif %};
+
+            /* form_requires needs to be a knockout observable so that
+             its value can be read by another UI (form filtering) */
+            var form_requires = ko.observable();
+            var caseConfig = new CaseConfig.CaseConfig({
+                home: $('#casexml_home'),
+                actions: {{ form.actions|JSON }},
+                questions: {{ xform_questions|JSON }},
+                edit: edit,
+                save_url: "{% url "corehq.apps.app_manager.views.edit_form_actions" app.domain app.id module.id nav_form.id %}",
+                requires: form_requires,
+                reserved_words: {{ case_reserved_words_json|JSON }},
+                moduleCaseTypes: {{ module_case_types|JSON }},
+                caseType: {{ form.get_case_type|JSON }},
+                propertiesMap: {{ case_properties|JSON }}
+            });
+            caseConfig.init();
+        });
+    </script>
+    <script>
+        $(function () {
+            var validation_url = '{% url "validate_form_for_build" domain app.id form.unique_id %}';
+            COMMCAREHQ.app_manager.fetchAndShowFormValidation = function () {
+                $.getJSON(validation_url, function (data) {
+                    $('#form_build_errors').html(data.error_html);
+                });
+            };
+            if ($.cookie('suppress_build_errors')) {
+                $.cookie('suppress_build_errors', null, {path: '/'});
+            } else {
+                COMMCAREHQ.app_manager.fetchAndShowFormValidation();
+            }
+        });
+    </script>
+{% endblock %}
+{% block head %}
+    {{ block.super }}
+    <link href="{% static 'hqwebapp/js/lib/select2/select2.css' %}" rel="stylesheet"/>
+    <link rel="stylesheet" href="{{ STATIC_URL }}syntaxhighlighter/styles/shCoreDefault.css"/>
+    <script src="{{ STATIC_URL }}syntaxhighlighter/scripts/shCore.js"></script>
+    <script src="{{ STATIC_URL }}syntaxhighlighter/scripts/shBrushXml.js"></script>
+    <style>
+        .casexml ul {
+            margin-left: 15px;
+        }
+        .no-edit-select {
+            font-weight: bold;
+            color: #444;
+        }
+        input[type="radio"]{
+            margin: 3px 5px 5px 0px;
+        }
+        #xform-links ul {
+            display: block;
+        }
+        #xform-links li {
+            display: inline-block;
+            border-left: 1px solid #DDD;
+            padding: 0 5px;
+        }
+        #xform-links li:first-child {
+            border-left: none;
+            padding-left: 0;
+        }
+        #xform-links a {
+            display: inline-block;
+            border: 1px solid transparent;
+            padding: 5px 10px;
+            vertical-align: middle;
+
+            border-radius: 15px;
+            -moz-border-radius: 15px;
+        }
+        #xform-links a:hover {
+            border: 1px solid #BBB;
+            background: #EEE;
+            text-decoration: none;
+        }
+        #xform-links a:active {
+            border: 1px solid #BBB;
+            background: #DDD;
+            text-decoration: none;
+        }
+        #xform-links a.disabled {
+            pointer-events: none;
+            cursor: default;
+            color: #888;
+        }
+        .bigdrop {
+            width: 600px !important;
+        }
+    </style>
+    {% if app.application_version == '2.0' %}
+    <style>
+        #open-referral-action,
+        #update-referral-action,
+        #close-referral-action,
+        #referral-preload-action {
+            display: none;
+        }
+        .indent {
+            margin-left: 15px;
+        }
+        .ko-no-edit-select {
+            font-weight: bold;
+            color: #444;
+        }
+        .code.ko-no-edit {
+            font-weight: normal;
+        }
+    </style>
+    {% endif %}
+{% endblock %}
+{% block form-view %}
+
+    <div id="form_build_errors"></div>
+    {% if edit and not is_user_registration %}
+        <div class="delete-me">
+            <form action="{% url "delete_form" domain app.id module.id form.id %}" method="post">
+                <button type="submit" class="disable-on-submit btn btn-danger">
+                    <i class="icon-trash"></i>
+                    {% trans "Delete Form" %}
+                </button>
+            </form>
+        </div>
+    {% endif %}
+
+    <h3>
+        <i class="icon icon-file-alt"></i>
+        <span class="app-manager-title variable-form_name">{{ form.name|html_trans:langs|safe }}</span>
+    </h3>
+
+    {% if edit %}
+    <div class="btn-group">
+        <a href="./source/" class="btn btn-primary">
+            <i class="icon-pencil"></i>
+            {% trans "Edit" %}
+        </a>
+    </div>
+    <hr/>
+    {% endif %}
+
+    <div class="tabbable">
+        <ul class="nav nav-tabs">
+            <li class="active">
+                <a href="#form-settings" data-toggle="tab">{% trans "Settings" %}</a>
+            </li>
+            <li>
+                <a href="#careplan-configuration" data-toggle="tab">
+                    {% trans "Careplan config" %}
+                </a>
+            </li>
+        </ul>
+        <div class="tab-content">
+    {% if nav_form %}
+        <div class="tab-pane active" id="form-settings">
+            <form class="form-horizontal save-button-form" action="{% url "corehq.apps.app_manager.views.edit_form_attr" domain app.id form.get_unique_id 'all' %}">
+                <div class="save-button-holder clearfix"></div>
+                <div class="control-group">
+                    <label class="control-label">{% trans "Form Name" %}</label>
+                    <div class="controls">
+                        {% if edit %}
+                            {{ form.name|input_trans:langs|safe }}
+                        {% else %}
+                            {{ form.name|html_trans:langs|safe }}
+                        {% endif %}
+                    </div>
+                </div>
+                {% include "app_manager/partials/nav_menu_media.html" with item=form %}
+            </form>
+        </div>
+    {% endif %}
+        <div class="tab-pane" id="careplan-configuration">
+        {% if form_errors or xform_validation_errored %}
+            <p class="alert alert-warning">
+                {% trans "There are errors in your form. Fix your form in order to view and edit Case Management." %}
+            </p>
+        {% else %}
+            {% if form.source %}
+                    <header class="clearfix">
+                        <h4 class="pull-left">{% trans "Case Management" %}</h4>
+                        <span class="hq-help-template"
+                            data-title="{% trans "Case Management" %}"
+                            data-content="{% trans "Cases give you a way to track patients, farms, etc. over time.  You can choose to save data from a form to the case, which will store the data locally on the phone to use later." %}"
+                        ></span>
+                    </header>
+                    <div class="casexml" id="casexml_home">
+                        {% include 'app_manager/partials/case_config.html' %}
+                    </div>
+            {% else %}
+                <p class="alert alert-warning">
+                    {% trans "You have not created a form yet. Create a form in order to view and edit Case Management." %}
+                </p>
+            {% endif %}
+        {% endif %}
+        </div>
+        </div>
+    </div>
+    <div id="questions"></div>
+{% endblock %}
