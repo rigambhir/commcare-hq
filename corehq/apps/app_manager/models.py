@@ -2566,7 +2566,7 @@ class DeleteModuleRecord(DeleteRecord):
 
     app_id = StringProperty()
     module_id = IntegerProperty()
-    module = SchemaProperty(Module)
+    module = SchemaProperty(ModuleBase)
 
     def undo(self):
         app = Application.get(self.app_id)
@@ -2590,10 +2590,10 @@ class DeleteFormRecord(DeleteRecord):
         app.modules[self.module_id].forms = forms
         app.save()
 
-Form.get_command_id = lambda self: "m{module.id}-f{form.id}".format(module=self.get_module(), form=self)
-Form.get_locale_id = lambda self: "forms.m{module.id}f{form.id}".format(module=self.get_module(), form=self)
+FormBase.get_command_id = lambda self: "m{module.id}-f{form.id}".format(module=self.get_module(), form=self)
+FormBase.get_locale_id = lambda self: "forms.m{module.id}f{form.id}".format(module=self.get_module(), form=self)
 
-Module.get_locale_id = lambda self: "modules.m{module.id}".format(module=self)
+ModuleBase.get_locale_id = lambda self: "modules.m{module.id}".format(module=self)
 
 Module.get_case_list_command_id = lambda self: "m{module.id}-case-list".format(module=self)
 Module.get_case_list_locale_id = lambda self: "case_lists.m{module.id}".format(module=self)
