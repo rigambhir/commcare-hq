@@ -28,7 +28,7 @@ from django.utils.http import urlencode
 from django.views.decorators.http import require_GET
 from django.conf import settings
 from couchdbkit.resource import ResourceNotFound
-from corehq.apps.app_manager.const import APP_V1, CAREPLAN_GOAL, CAREPLAN_TASK
+from corehq.apps.app_manager.const import APP_V1, CAREPLAN_GOAL, CAREPLAN_TASK, APP_V2
 from corehq.apps.app_manager.success_message import SuccessMessage
 from corehq.apps.app_manager.util import is_valid_case_type, get_all_case_properties, add_odk_profile_after_build, ParentCasePropertyBuilder
 from corehq.apps.app_manager.util import save_xform, get_settings_values
@@ -692,8 +692,9 @@ def view_generic(req, domain, app_id=None, module_id=None, form_id=None, is_user
         del app['use_commcare_sense']
         app.save()
 
+    v2_app = app.application_version == APP_V2
     context.update({
-        'show_care_plan': toggle_enabled(toggles.APP_BUILDER_CARE_PLAN, req.user.username),
+        'show_care_plan': (v2_app and toggle_enabled(toggles.APP_BUILDER_CARE_PLAN, req.user.username)),
         'module': module,
         'form': form,
     })
@@ -827,7 +828,11 @@ def new_module(req, domain, app_id):
         response.set_cookie('suppress_build_errors', 'yes')
         return response
     elif module_type == 'careplan':
-        return _new_careplan_module(req, domain, app, name, lang)
+        if app.application_version == APP_V1:
+            messages.warning(req, _('Please upgrade you app to > 2.0 in order to add a Careplan module'))
+            return back_to_main(req, domain, app_id=app.id)
+        else:
+            return _new_careplan_module(req, domain, app, name, lang)
     else:
         logger.error('Unexpected module type for new module: "%s"' % module_type)
         return back_to_main(req, domain, app_id=app_id)
