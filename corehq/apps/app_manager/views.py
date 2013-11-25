@@ -45,7 +45,7 @@ from dimagi.utils.couch.database import get_db
 from dimagi.utils.couch.resource_conflict import retry_resource
 from corehq.apps.app_manager.xform import XFormError, XFormValidationError, CaseError,\
     XForm
-from corehq.apps.app_manager.case_in_form import (get_validated_references,
+from corehq.apps.app_manager.case_references import (get_validated_references,
         get_reftype_names)
 from corehq.apps.builds.models import CommCareBuildConfig, BuildSpec
 from corehq.apps.users.decorators import require_permission
