@@ -167,7 +167,7 @@
                 showCaseReferences: {{ case_management_in_vellum|JSON }},
                 caseReferences: {{ case_references|JSON }},
                 caseReferenceTypes: {{ case_reference_types|JSON }}
-                {% if app.application_version != '1.0' %}
+                {% if app.application_version == '1.0' %}
                 ,ejs_urls: {
                     template: "{% static 'app_manager/ejs/case-config-ui-2.ejs' %}",
                     condition_ejs: "{% static 'app_manager/ejs/condition.ejs' %}",
@@ -190,7 +190,7 @@
             var cloudCareUrl = getCloudCareUrl("{% url "cloudcare_main" domain '' %}", "{{ app.id }}", "{{ module.id }}", "{{ nav_form.id }}") + "?preview=true";
             $("#cloudcare-preview-url").attr("href", cloudCareUrl);
 
-            {% if app.application_version != '1.0' %}
+            {% if app.application_version == '2.0' %}
                 var allFormsRequireACase = {{ module.all_forms_require_a_case|BOOL }};
                 var putInRoot = {{ module.put_in_root|BOOL }};
                 var formFilter = {{ form.form_filter|JSON }};
@@ -379,7 +379,7 @@
                     </div>
                 </div>
                 {% include "app_manager/partials/nav_menu_media.html" with item=form %}
-                {% if app.application_version != '1.0' %}
+                {% if app.application_version == '2.0' %}
                     <div class="control-group">
                         <label class="control-label">
                             {% trans "Display Condition" %}

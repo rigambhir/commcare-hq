@@ -8,6 +8,7 @@ from corehq.apps.app_manager.util import split_path, create_temp_sort_column
 from corehq.apps.app_manager.xform import SESSION_CASE_ID, autoset_owner_id_for_open_case, autoset_owner_id_for_subcase
 from dimagi.utils.decorators.memoized import memoized
 from dimagi.utils.web import get_url_base
+from .xpath import dot_interpolate
 
 FIELD_TYPE_INDICATOR = 'indicator'
 FIELD_TYPE_PROPERTY = 'property'
@@ -149,11 +150,11 @@ class Entry(XmlObject):
 
     form = StringField('form')
     command = NodeField('command', Command)
-    instance = NodeField('instance', Instance)
     instances = NodeListField('instance', Instance)
 
     datums = NodeListField('session/datum', SessionDatum)
-    datum = NodeField('session/datum', SessionDatum)
+
+    assertions = NodeListField('assertions/assert', Assertion)
 
     assertions = NodeListField('assertions/assert', Assertion)
 
@@ -651,6 +652,7 @@ class SuiteGenerator(object):
                 )
                 add_case_stuff(module, e, use_filter=False)
                 yield e
+
     @property
     def menus(self):
         for module in self.modules:
@@ -667,9 +669,8 @@ class SuiteGenerator(object):
                     if module.all_forms_require_a_case() and \
                             not module.put_in_root and \
                             getattr(form, 'form_filter', None):
-                        command.relevant = form.form_filter.replace('.',
-                            SESSION_CASE_ID.case()
-                        )
+                        command.relevant = dot_interpolate(
+                                form.form_filter, SESSION_CASE_ID.case())
                     yield command
 
                 if module.case_list.show:

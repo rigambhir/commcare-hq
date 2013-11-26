@@ -184,6 +184,90 @@ def autoset_owner_id_for_open_case(actions):
 def autoset_owner_id_for_subcase(subcase):
     return 'owner_id' not in subcase.case_properties
 
+        self.xform.add_bind(
+            nodeset='%scase' % path,
+            relevant=relevance,
+        )
+        add_setvalue_or_bind(
+            ref='%scase/@case_id' % path,
+            value='uuid()',
+        )
+        self.xform.add_bind(
+            nodeset="%scase/create/case_name" % path,
+            calculate=self.xform.resolve_path(case_name),
+        )
+
+        if not autoset_owner_id:
+            owner_id_node.text = '-'
+        elif has_case_sharing:
+            self.xform.add_instance('groups', src='jr://fixture/user-groups')
+            add_setvalue_or_bind(
+                ref="%scase/create/owner_id" % path,
+                value="instance('groups')/groups/group/@id"
+            )
+        else:
+            self.xform.add_bind(
+                nodeset="%scase/create/owner_id" % path,
+                calculate=self.xform.resolve_path("meta/userID"),
+            )
+
+        if not case_name:
+            raise CaseError("Please set 'Name according to question'. "
+                            "This will give each case a 'name' attribute")
+        self.xform.add_bind(
+            nodeset=case_name,
+            required="true()",
+        )
+
+    def add_update_block(self, updates, path=''):
+        update_block = make_case_elem('update')
+        self.elem.append(update_block)
+        update_mapping = {}
+
+        if updates:
+            for key, value in updates.items():
+                if key == 'name':
+                    key = 'case_name'
+                update_mapping[key] = value
+
+        for key in sorted(update_mapping.keys()):
+            update_block.append(make_case_elem(key))
+
+        for key, q_path in sorted(update_mapping.items()):
+            resolved_path = self.xform.resolve_path(q_path)
+            self.xform.add_bind(
+                nodeset="%scase/update/%s" % (path, key),
+                calculate=resolved_path,
+                relevant=("count(%s) > 0" % resolved_path)
+            )
+
+    def add_close_block(self, relevance, path=''):
+        self.elem.append(make_case_elem('close'))
+        self.xform.add_bind(
+            nodeset="%scase/close" % path,
+            relevant=relevance,
+        )
+
+    def add_index_ref(self, reference_id, case_type, case_path='', ref_path="case/@case_id"):
+        index_node = make_case_elem('index')
+        parent_index = make_case_elem(reference_id, {'case_type': case_type})
+        index_node.append(parent_index)
+        self.elem.append(index_node)
+
+        self.xform.add_bind(
+            nodeset='{path}case/index/{ref}'.format(path=case_path, ref=reference_id),
+            calculate=self.xform.resolve_path(ref_path),
+        )
+
+
+def autoset_owner_id_for_open_case(actions):
+    return not ('update_case' in actions and
+                'owner_id' in actions['update_case'].update)
+
+
+def autoset_owner_id_for_subcase(subcase):
+    return 'owner_id' not in subcase.case_properties
+
 
 class XForm(WrappedNode):
     """
@@ -199,7 +283,7 @@ class XForm(WrappedNode):
             self.namespaces.update(x="{%s}" % xmlns)
 
     def validate(self, version='1.0'):
-        validation_results = formtranslate.api.validate(ET.tostring(self.xml) if self.xml else '', version=version)
+        validation_results = formtranslate.api.validate(ET.tostring(self.xml) if self.xml is not None else '', version=version)
         if not validation_results.success:
             raise XFormValidationError(validation_results.fatal_error, version, validation_results.problems)
         return self
@@ -346,62 +430,7 @@ class XForm(WrappedNode):
             langs.append(translation.attrib['lang'])
         return langs
 
-    def get_path(self, node):
-        # TODO: add safety tests so that when something fails it fails with a good error
-        path = None
-        if 'nodeset' in node.attrib:
-            path = node.attrib['nodeset']
-        elif 'ref' in node.attrib:
-            path = node.attrib['ref']
-        elif 'bind' in node.attrib:
-            bind_id = node.attrib['bind']
-            bind = self.model_node.find('{f}bind[@id="%s"]' % bind_id)
-            path = bind.attrib['nodeset']
-        elif node.tag_name == "group":
-            path = ""
-        elif node.tag_name == "repeat":
-            path = node.attrib['nodeset']
-        else:
-            raise XFormError("Node <%s> has no 'ref' or 'bind'" % node.tag_name)
-        return path
-
-    def for_each_leaf_control_node(self, leaf_callback, all_callback=None):
-        if not self.exists():
-            return
-
-        def for_each_control_node(group, path_context="", repeat_context=""):
-            for node in group.findall('*'):
-                if node.tag_xmlns == namespaces['f'][1:-1]:
-                    path = self.resolve_path(self.get_path(node), path_context)
-                    if node.tag_name == "group":
-                        for_each_control_node(node, path_context=path, repeat_context=repeat_context)
-                    elif node.tag_name == "repeat":
-                        for_each_control_node(node, path_context=path, repeat_context=path)
-                    else:
-                        if node.tag_name in ("select1", "select"):
-                            items = node.findall('{f}item')
-                        else:
-                            items = None
-                        leaf_callback(node, path, repeat_context, items)
-                    if all_callback:
-                        all_callback(node, path, repeat_context, None)
-
-        for_each_control_node(self.find('{h}body'))
-
-    def for_each_leaf_data_node(self, callback):
-        if not self.exists():
-            return
-        
-        def for_each_data_node(parent, path_context=""):
-            for child in parent.findall('*'):
-                path = self.resolve_path(child.tag_name, path_context)
-                for_each_data_node(child, path_context=path)
-            if not parent.findall('*'):
-                callback(parent, path_context)
-
-        for_each_data_node(self.data_node)
- 
-    def get_questions(self, langs):
+    def get_questions(self, langs, include_triggers=False):
         """
         parses out the questions from the xform, into the format:
         [{"label": label, "tag": tag, "value": value}, ...]
@@ -417,11 +446,15 @@ class XForm(WrappedNode):
         repeat_contexts = set([''])
 
         excluded_paths = set()
+        repeat_contexts = set()
 
-        def for_each_node(node, path, repeat_context, items):
+        for node_data in self.get_control_nodes(include_triggers=include_triggers):
+            node, path, repeat_context, items, is_leaf = node_data
             excluded_paths.add(path)
+            if not is_leaf:
+                continue
 
-        def for_each_leaf_control_node(node, path, repeat_context, items):
+            repeat_contexts.add(repeat_context)
             question = {
                 "label": self.get_label_text(node, langs),
                 "tag": node.tag_name,
@@ -440,17 +473,13 @@ class XForm(WrappedNode):
                     options.append({
                         'label': translation,
                         'value': value
-                     })
+                    })
                 question['options'] = options
             questions.append(question)
 
-        self.for_each_leaf_control_node(
-                for_each_leaf_control_node, for_each_node)
-        excluded_paths.update([q['value'] for q in questions])
-        repeat_contexts = sorted(
-                set(q['repeat'] for q in questions), reverse=True)
-        
-        def for_each_data_node(data_node, path):
+        repeat_contexts = sorted(repeat_contexts, reverse=True)
+       
+        for data_node, path in self.get_leaf_data_nodes():
             if path not in excluded_paths:
                 matching_repeat_context = (
                     repeat_context for repeat_context in repeat_contexts
@@ -462,9 +491,71 @@ class XForm(WrappedNode):
                     "value": path,
                     "repeat": matching_repeat_context,
                 })
-        self.for_each_leaf_data_node(for_each_data_node)
 
         return questions
+
+    def get_control_nodes(self, include_triggers=True):
+        if not self.exists():
+            return []
+
+        control_nodes = []
+
+        def for_each_control_node(group, path_context="", repeat_context=""):
+            for node in group.findall('*'):
+                is_leaf = False
+                items = None
+                tag = node.tag_name
+                if node.tag_xmlns == namespaces['f'][1:-1] and tag != 'label':
+                    path = self.resolve_path(self.get_path(node), path_context)
+                    if tag == "group":
+                        for_each_control_node(node, path_context=path, repeat_context=repeat_context)
+                    elif tag == "repeat":
+                        for_each_control_node(node, path_context=path, repeat_context=path)
+                    elif include_triggers or tag != 'trigger':
+                        is_leaf = True
+                        if tag in ("select1", "select"):
+                            items = node.findall('{f}item')
+
+                    control_nodes.append(
+                            (node, path, repeat_context, items, is_leaf))
+
+        for_each_control_node(self.find('{h}body'))
+        return control_nodes
+
+    def get_path(self, node):
+        # TODO: add safety tests so that when something fails it fails with a good error
+        path = None
+        if 'nodeset' in node.attrib:
+            path = node.attrib['nodeset']
+        elif 'ref' in node.attrib:
+            path = node.attrib['ref']
+        elif 'bind' in node.attrib:
+            bind_id = node.attrib['bind']
+            bind = self.model_node.find('{f}bind[@id="%s"]' % bind_id)
+            path = bind.attrib['nodeset']
+        elif node.tag_name == "group":
+            path = ""
+        elif node.tag_name == "repeat":
+            path = node.attrib['nodeset']
+        else:
+            raise XFormError("Node <%s> has no 'ref' or 'bind'" % node.tag_name)
+        return path
+    
+    def get_leaf_data_nodes(self):
+        if not self.exists():
+            return []
+       
+        data_nodes = []
+
+        def for_each_data_node(parent, path_context=""):
+            for child in parent.findall('*'):
+                path = self.resolve_path(child.tag_name, path_context)
+                for_each_data_node(child, path_context=path)
+            if not parent.findall('*'):
+                data_nodes.append((parent, path_context))
+
+        for_each_data_node(self.data_node)
+        return data_nodes
 
 
     def add_case_and_meta(self, form):
@@ -832,6 +923,7 @@ class XForm(WrappedNode):
                     case_type=form.get_case_type(),
                     path='',
                     autoset_owner_id=autoset_owner_id_for_open_case(actions),
+                    has_case_sharing=form.get_app().case_sharing,
                 )
                 if 'external_id' in actions['open_case'] and actions['open_case'].external_id:
                     extra_updates['external_id'] = actions['open_case'].external_id
@@ -941,6 +1033,7 @@ class XForm(WrappedNode):
                     path=path,
                     delay_case_id=bool(subcase.repeat_context),
                     autoset_owner_id=autoset_owner_id_for_subcase(subcase),
+                    has_case_sharing=form.get_app().case_sharing,
                 )
 
                 subcase_block.add_update_block(subcase.case_properties, path=path)
