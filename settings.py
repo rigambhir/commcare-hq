@@ -480,7 +480,7 @@ AUDIT_VIEWS = [
 
 # Don't use google analytics unless overridden in localsettings
 ANALYTICS_IDS = {
-    'GOOGLE_ANALYTICS_ID': '',
+    'GOOGLE_ANALYTICS_ID': 'UA-45842950-2',
     'PINGDOM_ID': ''
 }
 
