@@ -372,7 +372,7 @@ def get_form_view_context_and_template(request, form, langs, is_user_registratio
     if isinstance(form, CareplanForm):
         context.update({
             'fixed_questions': form.get_fixed_questions(),
-            'custom_case_properties': form.custom_case_updates,
+            'custom_case_properties': [{'key': key, 'path': path} for key, path in form.custom_case_updates.items()],
         })
         return "app_manager/form_view_careplan.html", context
     else:

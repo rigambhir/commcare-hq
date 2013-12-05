@@ -1189,20 +1189,21 @@ class CareplanGoalForm(CareplanForm):
         return changes
 
     def get_fixed_questions(self):
-        def q(name, label):
+        def q(name, case_key, label):
             return {
                 'name': name,
+                'key': case_key,
                 'label': label,
                 'path': self[name]
             }
         questions = [
-            q('description_path', _('Description')),
-            q('date_followup_path', _('Followup date')),
+            q('description_path', 'description', _('Description')),
+            q('date_followup_path', 'date_followup', _('Followup date')),
         ]
         if self.mode == 'create':
-            return [q('name_path', _('Name'))] + questions
+            return [q('name_path', 'name', _('Name'))] + questions
         else:
-            return questions + [q('close_path', _('Close if'))]
+            return questions + [q('close_path', 'close', _('Close if'))]
 
 
 class CareplanTaskForm(CareplanForm):
@@ -1237,24 +1238,25 @@ class CareplanTaskForm(CareplanForm):
         return changes
 
     def get_fixed_questions(self):
-        def q(name, label):
+        def q(name, case_key, label):
             return {
                 'name': name,
+                'key': case_key,
                 'label': label,
                 'path': self[name]
             }
         questions = [
-            q('date_followup_path', _('Followup date')),
+            q('date_followup_path', 'date_followup', _('Followup date')),
         ]
         if self.mode == 'create':
             return [
-                q('name_path', _('Name')),
-                q('description_path', _('Description')),
+                q('name_path', 'name', _('Name')),
+                q('description_path', 'description', _('Description')),
             ] + questions
         else:
             return questions + [
-                q('latest_report_path', _('Latest report')),
-                q('close_path', _('Close if')),
+                q('latest_report_path', 'latest_report', _('Latest report')),
+                q('close_path', 'close', _('Close if')),
             ]
 
 

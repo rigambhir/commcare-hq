@@ -27,7 +27,8 @@
                 edit: edit,
                 questions: {{ xform_questions|JSON }},
                 fixedQuestions: {{ fixed_questions|JSON }},
-                customCaseUpdates: {{ custom_case_updates|JSON }},
+                customCaseUpdates: {{ custom_case_properties|JSON }},
+                reserved_words: {{ case_reserved_words_json|JSON }},
                 caseType: {{ form.get_case_type|JSON }},
                 save_url: "{% url "corehq.apps.app_manager.views.edit_careplan_form_actions" app.domain app.id module.id nav_form.id %}",
                 propertiesMap: {{ case_properties|JSON }}
@@ -120,15 +121,18 @@
                         </thead>
 
                         <tbody data-bind="foreach: transaction.fixedQuestions">
-                            <tr class="control-group" data-bind="css: {error: validateQuestion}">
-                                <td data-bind="text: label">
+                            <tr class="control-group" data-bind="css: {error: validate}">
+                                <td>
+                                    <div><span data-bind="text: label"></span></div>
+                                    <p class="help-inline" data-bind="html: validateKey, visible: validateKey"></p>
                                 </td>
                                 <td>
                                     <div>
                                         <input class="input-xxlarge" type="hidden" data-bind="
                                             questionsSelect: $root.questions,
                                             value: path,
-                                            optionsCaption: ' '"
+                                            optionsCaption: ' ',
+                                            edit: $root.edit"
                                         />
                                     </div>
                                     <p class="help-inline" data-bind="html: validateQuestion, visible: validateQuestion"></p>
@@ -136,6 +140,63 @@
                             </tr>
                         </tbody>
                     </table>
+                     <em>{% blocktrans %}Save additional data to the '{{ form.case_type }}' case{% endblocktrans %}</em>
+                    <div class="alert alert-block alert-info" data-bind="visible: !transaction.customCaseUpdates().length">
+                        {% trans "No additional case properties will be saved" %}
+                    </div>
+                    <table class="table table-condensed" data-bind="visible: transaction.customCaseUpdates().length">
+                        <thead>
+                            <tr>
+                                <th></th>
+                                <th>{% trans "Question" %}</th>
+                                <th></th>
+                                <th>{% trans "Case Property" %}</th>
+                            </tr>
+                        </thead>
+
+                        <tbody data-bind="foreach: transaction.customCaseUpdates">
+                            <tr class="control-group" data-bind="css: {error: validate, warning: !validate() && !path()}">
+                                <td>
+                                    <a href="#" data-bind="
+                                        click: transaction.removeProperty,
+                                        visible: $root.edit && !(isBlank() && $index() === transaction.customCaseUpdates().length - 1)
+                                    ">
+                                        <i class="icon-remove"></i>
+                                    </a>
+                                </td>
+                                <td>
+                                    <div>
+                                        <input class="input-large" type="hidden" data-bind="
+                                            questionsSelect: $root.questions,
+                                            value: path,
+                                            optionsCaption: ' ',
+                                            edit: $root.edit"
+                                        />
+                                    </div>
+                                    <p class="help-inline" data-bind="html: validateQuestion, visible: validateQuestion"></p>
+                                </td>
+                                <td>
+                                    <i class="icon-arrow-right"></i>
+                                </td>
+                                <td>
+                                    <div>
+                                        <span>
+                                            <input type="text" class="input-medium" data-bind="
+                                                valueDefault: key,
+                                                default: defaultKey,
+                                                edit: $root.edit
+                                            "/>
+                                        </span>
+                                    </div>
+                                    <p class="help-inline" data-bind="html: validateKey, visible: validateKey"></p>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    <a href="#" data-bind="click: transaction.addProperty, visible: $root.edit && !transaction.customCaseUpdates().length">
+                        <i class="icon-plus"></i>
+                        {% trans "Save properties" %}
+                    </a>
                 </div>
             {% else %}
                 <p class="alert alert-warning">
